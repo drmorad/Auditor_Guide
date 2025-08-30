@@ -1,0 +1,7 @@
+{
+  "name": "Copy of OpsDocs - Smart Compliance Hub",
+  "description": "A centralized hub for compliance documentation, HACCP plans, monitoring logs, and team access. Features an AI-powered assistant to generate Standard Operating Procedures (SOPs).",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
