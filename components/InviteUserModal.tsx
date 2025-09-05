@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User } from '../types';
 import { XIcon, UserPlusIcon } from './icons';
@@ -7,9 +6,10 @@ interface InviteUserModalProps {
   onClose: () => void;
   // FIX: Removed non-existent 'forcePasswordChange' property from Omit type for clarity.
   onSave: (newUser: Omit<User, 'id' | 'avatar'>) => void;
+  organizationId: string;
 }
 
-export const InviteUserModal: React.FC<InviteUserModalProps> = ({ onClose, onSave }) => {
+export const InviteUserModal: React.FC<InviteUserModalProps> = ({ onClose, onSave, organizationId }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +31,8 @@ export const InviteUserModal: React.FC<InviteUserModalProps> = ({ onClose, onSav
 
     // FIX: Added missing 'status' property to resolve the TypeScript error.
     // When a new user is invited, their status should be 'Pending'.
-    onSave({ name, email, password, role, status: 'Pending' });
+    // FIX: Added missing 'organizationId' property to the new user object to satisfy the User type, which is crucial for the application's multi-tenancy.
+    onSave({ name, email, password, role, status: 'Pending', organizationId });
   };
 
   return (

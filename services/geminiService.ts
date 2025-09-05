@@ -50,19 +50,20 @@ const sopSchema = {
 export const generateSop = async (topic: string, details: string): Promise<Sop> => {
   try {
     const prompt = `
-      Create a detailed Standard Operating Procedure (SOP) for a food service or pharmacy environment.
+      Generate a comprehensive Standard Operating Procedure (SOP).
       
-      Topic: ${topic}
+      The main topic for the SOP is: "${topic}"
       
-      Key Details to Include: ${details}
+      If provided, here are some key details, requirements, or specific points that must be included in the procedure: "${details}"
 
-      Generate a comprehensive SOP based on the topic and details provided. Ensure the steps are clear, concise, and easy to follow. The output must conform to the provided JSON schema.
+      The SOP should be structured with a clear title, purpose, scope, and a series of actionable steps. Each step must have its own title and a detailed description. The language should be professional and unambiguous. The output must strictly conform to the provided JSON schema.
     `;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
+        systemInstruction: "You are an expert in creating clear, professional, and compliant Standard Operating Procedures (SOPs) for various business environments. Your goal is to produce documents that are easy for employees to understand and follow.",
         responseMimeType: "application/json",
         responseSchema: sopSchema,
         temperature: 0.7,

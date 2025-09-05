@@ -1,8 +1,10 @@
 
+
 import React, { useState } from 'react';
-import { Sop, View } from '../types';
+import { Sop, View, Document } from '../types';
 import { generateSop } from '../services/geminiService';
-import { MagicIcon } from './icons';
+import { MagicIcon, DocumentIcon } from './icons';
+import { SaveSopModal } from './SaveSopModal';
 
 const LoadingSpinner: React.FC = () => (
     <div className="flex items-center justify-center space-x-2">
@@ -46,15 +48,17 @@ const SopDisplay: React.FC<{ sop: Sop }> = ({ sop }) => {
 interface SopGeneratorProps {
   setView: (view: View) => void;
   addAuditLog: (action: string, details: string) => void;
+  onSaveSop: (documentData: { name: string; category: Document['category']; tags: string[]; content: string; }) => void;
   initialData?: { topic: string; details: string; } | null;
 }
 
-export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog, initialData }) => {
+export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog, onSaveSop, initialData }) => {
   const [topic, setTopic] = useState(initialData?.topic || '');
   const [details, setDetails] = useState(initialData?.details || '');
   const [generatedSop, setGeneratedSop] = useState<Sop | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
 
   const handleGenerate = async () => {
     if (!topic.trim()) {
@@ -75,6 +79,30 @@ export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog
     }
   };
   
+  const formatSopContent = (sop: Sop): string => {
+    let content = `Title: ${sop.title}\n\n`;
+    content += `Purpose: ${sop.purpose}\n\n`;
+    content += `Scope: ${sop.scope}\n\n`;
+    content += `Procedure:\n`;
+    sop.steps.forEach((step, index) => {
+        content += `${index + 1}. ${step.title}\n`;
+        content += `   ${step.description}\n\n`;
+    });
+    return content.trim();
+  };
+
+  const handleSave = (saveDetails: { name: string; category: Document['category']; tags: string[] }) => {
+    if (!generatedSop) return;
+
+    const documentData = {
+      ...saveDetails,
+      content: formatSopContent(generatedSop),
+    };
+
+    onSaveSop(documentData);
+    setIsSaveModalOpen(false);
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
@@ -132,7 +160,24 @@ export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog
         </div>
       )}
 
-      {generatedSop && <SopDisplay sop={generatedSop} />}
+      {generatedSop && (
+        <>
+            <div className="mt-6 flex justify-end">
+                <button
+                    onClick={() => setIsSaveModalOpen(true)}
+                    className="flex items-center gap-2 bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow-md"
+                >
+                    <DocumentIcon className="w-5 h-5"/>
+                    Save to Document Hub
+                </button>
+            </div>
+            <SopDisplay sop={generatedSop} />
+        </>
+      )}
+
+      {isSaveModalOpen && generatedSop && (
+        <SaveSopModal sop={generatedSop} onClose={() => setIsSaveModalOpen(false)} onSave={handleSave} />
+      )}
     </div>
   );
 };

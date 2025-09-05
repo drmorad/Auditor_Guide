@@ -169,17 +169,13 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
 
         const range = selection.getRangeAt(0);
         
-        // FIX: Use window.document to avoid conflict with the 'document' prop.
         const span = window.document.createElement('span');
-        // This class creates the temporary visual highlight for the selection
         span.className = 'bg-yellow-200 dark:bg-yellow-700/60 rounded';
         tempHighlightRef.current = span;
 
         try {
-            // Wrap the selected content with our new span
             range.surroundContents(span);
             
-            // Use the bounding box of the new span to position the tooltip
             const rect = span.getBoundingClientRect();
             const containerRect = contentRef.current.getBoundingClientRect();
     
@@ -189,14 +185,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
                 left: rect.left - containerRect.left + rect.width / 2 - 50,
                 text: selectedText
             });
-            selection.removeAllRanges(); // Clear the native browser selection
+            selection.removeAllRanges(); 
         } catch(e) {
             console.warn("Could not highlight selection. It might span across multiple block elements.", e);
-            clearSelection(); // Clean up if wrapping fails
+            clearSelection(); 
         }
     } else {
-        // If it was just a click without selection, hide the tooltip if it's visible.
-        // The main onClick handler will clear any existing highlight.
         if (tooltip.visible) {
             setTooltip({...tooltip, visible: false});
         }
@@ -236,13 +230,13 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
       : noteEditorState.text;
     addAuditLog('Note Added', `Added note to "${document.name}" for text: "${highlightSnippet}"`);
     
-    clearSelection(); // Remove the temporary highlight
+    clearSelection(); 
     setNoteEditorState(null);
     setShowNotes(true);
   };
   
   const handleCancelNote = () => {
-    clearSelection(); // Remove the temporary highlight
+    clearSelection();
     setNoteEditorState(null);
   };
 
@@ -298,7 +292,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
               ref={contentRef} 
               onMouseUp={handleMouseUp} 
               onClick={() => {
-                // Clicking away from a selection or tooltip clears it.
                 clearSelection();
                 if (noteEditorState) handleCancelNote();
               }}

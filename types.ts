@@ -1,5 +1,3 @@
-
-
 export enum View {
   Dashboard = 'Dashboard',
   Documents = 'Documents',
@@ -10,15 +8,17 @@ export enum View {
   AuditLog = 'AuditLog',
   Settings = 'Settings',
   AdminPanel = 'AdminPanel',
+  UserProfile = 'UserProfile',
 }
 
 export interface Hotel {
   id: string;
   name: string;
+  organizationId: string;
 }
 
 export interface User {
-  id: string;
+  id:string;
   name: string;
   email: string;
   password?: string;
@@ -27,6 +27,7 @@ export interface User {
   status: 'Active' | 'Pending';
   verificationCode?: string;
   hotelIds?: string[];
+  organizationId: string;
 }
 
 export interface Note {
@@ -47,6 +48,7 @@ export interface Document {
   type?: string;
   embedLink?: string;
   notes?: Note[];
+  organizationId: string;
 }
 
 export interface SopStep {
@@ -61,11 +63,14 @@ export interface Sop {
   steps: SopStep[];
 }
 
+export type SopTemplateCategory = 'Food Safety' | 'Health & Safety' | 'Operations' | 'HR';
+
 export interface SopTemplate {
   id: string;
-  title: string;
+  title:string;
   description: string;
   details: string;
+  category: SopTemplateCategory;
 }
 
 export interface AuditLogEntry {
@@ -96,6 +101,9 @@ export interface InspectionRecord {
   results: InspectionResult[];
   summaryNotes?: string;
   status: 'Completed' | 'Draft';
+  priority: 'High' | 'Medium' | 'Low';
+  organizationId: string;
+  dueDate?: string;
 }
 
 export interface InspectionChecklistItem {
@@ -108,5 +116,6 @@ export interface InspectionTemplate {
   name: string;
   department: string;
   sector: string;
+  priority: 'High' | 'Medium' | 'Low';
   items: InspectionChecklistItem[];
 }

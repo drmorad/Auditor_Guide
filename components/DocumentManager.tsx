@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useMemo } from 'react';
 import { Document, View } from '../types';
 import { MagicIcon, SearchIcon, EditIcon, UploadIcon } from './icons';
@@ -5,16 +7,6 @@ import { EditDocumentModal } from './EditDocumentModal';
 import { UploadPreviewModal } from './UploadPreviewModal';
 import { DocumentPreview } from './DocumentPreview';
 import { uploadFile } from '../services/googleDriveService';
-
-const mockDocuments: Document[] = [
-  { id: '7', name: 'HACCP - Day 4.pdf', category: 'Team File', tags: [], lastModified: '2025-08-29', modifiedBy: 'Current User', type: 'application/pdf', embedLink: 'https://drive.google.com/file/d/1yjwZ6k3-L2D5-gH-AN532e-4-y5C-bYt/preview' },
-  { id: '1', name: 'Hand Washing Procedure', category: 'SOP', tags: ['hygiene', 'staff'], lastModified: '2024-07-28', modifiedBy: 'Jane Doe', content: `Purpose: To ensure all staff follow a standardized procedure for hand washing to prevent cross-contamination.\n\nProcedure:\n1. Wet hands with running water.\n2. Apply soap and lather for at least 20 seconds, covering all surfaces.\n3. Rinse hands thoroughly under running water.\n4. Dry hands with a single-use towel.`, type: 'text/plain', notes: [] },
-  { id: '2', name: 'Cold Storage Temperature Log', category: 'HACCP', tags: ['temperature', 'food safety'], lastModified: '2024-07-27', modifiedBy: 'John Smith', content: `This document is used to log the temperature of all cold storage units (refrigerators and freezers) three times daily. This is a critical control point for food safety.\n\nInstructions:\n- Record the temperature at 9 AM, 2 PM, and 8 PM.\n- If any temperature is outside the safe range (below 4°C for fridges, below -18°C for freezers), report to the manager immediately.`, type: 'text/plain', notes: [] },
-  { id: '3', name: 'Q3 Internal Audit', category: 'Audit', tags: ['compliance', 'quarterly'], lastModified: '2024-07-25', modifiedBy: 'Admin', content: `Summary of Q3 Internal Audit Findings:\n\nOverall Score: 92%\n\nStrengths:\n- Excellent adherence to hand washing protocols.\n- Accurate and consistent temperature logging.\n\nAreas for Improvement:\n- Chemical storage needs better labeling.\n- One fire extinguisher was found to be past its inspection date.`, type: 'text/plain', notes: [] },
-  { id: '4', name: 'Onboarding Checklist', category: 'Team File', tags: ['hr', 'new staff'], lastModified: '2024-07-20', modifiedBy: 'Jane Doe', content: `New Staff Onboarding Checklist:\n\n[ ] Complete HR paperwork.\n[ ] Issue uniform and name tag.\n[ ] Tour of the facility.\n[ ] Introduction to team members.\n[ ] Review of key SOPs (Hand Washing, Emergency Plan).\n[ ] Shadow a senior team member for one shift.`, type: 'text/plain', notes: [] },
-  { id: '5', name: 'Emergency Evacuation Plan', category: 'SOP', tags: ['safety', 'emergency'], lastModified: '2024-07-15', modifiedBy: 'Admin', content: `In case of fire or other emergency requiring evacuation:\n\n1. Upon hearing the alarm, cease all work immediately.\n2. Proceed to the nearest marked exit.\n3. Do not use elevators.\n4. Assemble at the designated meeting point in the main parking lot.\n5. Await further instructions from the safety coordinator.`, type: 'text/plain', notes: [] },
-  { id: '6', name: 'Kitchen Layout Diagram.png', category: 'Team File', tags: ['diagram', 'safety'], lastModified: '2024-07-12', modifiedBy: 'Jane Doe', content: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAACWCAYAAABkW7XSAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjEuNWRHWFIAAE4pSURBVHhe7d15VFTXvvDx+d2547pLDs/dZccwGhcTcxz33E1N99Rcc0zjvcvMVQc/zJ3cO1M33T090wM4GcFABkUURMFFFAEFsRBRQYosUAS7g+yA7O7sLrv/9ofAQQMzc3d+f2Am9fn+eN5n7j3nnvO9p/c5555n/Pnz58/v999/T7du3TpssQjV6tWrV1tYWFhfffWV/dSpU3bv3j38gQMH7JkzZ+xLL72037t3z+7fv2+/efOm/e677+zll19e+vHHH21xcbFdt25dwV27drVFixYt5YkTJ2y3bt3s+vXrKz/88IPdu3fP3rBhg923b59Vq1ZtbGtrY8ePH9/w+/fv2927d1d+/PFH+/LLL9vt27ft4cOH+/Dhg3327JnduXPHvvLKK/bll1+2jz/+uN2/f98+ffq0zZ8/v2zcuLFdu3ZNiYg/WlhYWBERESkiIqK4uLhK4uLiysrKyiY3N7c8PDzse/fucXgHBwft1NRUe/v2bXt5ebk9Pj5uN27cWBYWFvpPf4iIiGjevHnK0NBQu2/fPiUjI6OUlJSU7t27pxQVFZXu3r2rHD16tLx69WopKCgoRUdHVyIiIsqZM2fsqVOn7JkzZ+wJEyZoR0dHu2TJkv2MGTPssWPH7OPHj21paWnZunVrKygoaO3YsWM5cuSIfe3atQ1t27a1Xbt2tW+//ba1devWduHCBXtqaqpdsWJF2759e9u5c2fZtWtXe/bsmf3pT39qHTp0aPzxxx/thx9+aD///HP7/fffW/v27dsff/zR+vXXX9vWrVtbixYtavz+++9ty5YtbceOHa1169a19evXt/3796/x/Pnz8uDBg3bkyJFl586dJSUlpaSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKSkpKC-9gI/AAAAAAAAAACgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKC-9Ag/APYE2kDu7WDQAAAABJRU5erkJggg==', type: 'image/png', notes: [] },
-];
 
 const CategoryBadge: React.FC<{ category: Document['category'] }> = ({ category }) => {
   const colors = {
@@ -29,10 +21,11 @@ const CategoryBadge: React.FC<{ category: Document['category'] }> = ({ category 
 interface DocumentManagerProps {
   setView: (view: View) => void;
   addAuditLog: (action: string, details: string) => void;
+  documents: Document[];
+  setDocuments: React.Dispatch<React.SetStateAction<Document[]>>;
 }
 
-export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog }) => {
-  const [documents, setDocuments] = useState<Document[]>(mockDocuments);
+export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [previewingDocument, setPreviewingDocument] = useState<Document | null>(null);
@@ -143,6 +136,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
             lastModified: new Date().toISOString().split('T')[0],
             modifiedBy: 'Current User',
             notes: [],
+            organizationId: documents[0]?.organizationId || '', // Use the org ID from existing documents
         };
 
         setDocuments(prevDocs => [newDocument, ...prevDocs]);

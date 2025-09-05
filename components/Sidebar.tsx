@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { View, User, Hotel } from '../types';
-import { DashboardIcon, DocumentIcon, TeamIcon, SunIcon, MoonIcon, AuditLogIcon, ClipboardCheckIcon, LogoutIcon, SettingsIcon, ShieldCheckIcon } from './icons';
+import { DashboardIcon, DocumentIcon, TeamIcon, SunIcon, MoonIcon, AuditLogIcon, ClipboardCheckIcon, LogoutIcon, SettingsIcon, ShieldCheckIcon, MagicIcon } from './icons';
 
 interface SidebarProps {
   currentView: View;
@@ -39,7 +38,10 @@ const NavItem: React.FC<{
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isDarkMode, toggleDarkMode, currentUser, onLogout, hotels, activeHotelId, setActiveHotelId }) => {
-  const userHotels = hotels.filter(h => currentUser.hotelIds?.includes(h.id));
+  // Admins get access to all hotels; other roles get only their assigned hotels.
+  const userHotels = currentUser.role === 'Admin'
+    ? hotels
+    : hotels.filter(h => currentUser.hotelIds?.includes(h.id));
   
   return (
     <aside className="w-64 flex-shrink-0 bg-white dark:bg-slate-800 shadow-lg flex flex-col justify-between p-4">
@@ -48,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, i
           <svg className="w-8 h-8 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-2h2v2h-2zm0-4v-6h2v6h-2z"></path>
           </svg>
-          <h1 className="text-2xl font-bold ml-2 text-slate-800 dark:text-white">OpsDocs</h1>
+          <h1 className="text-2xl font-bold ml-2 text-slate-800 dark:text-white">Auditors Guide</h1>
         </div>
         <nav>
           <ul>
@@ -70,6 +72,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, i
               view={View.Inspections}
               label="Inspections"
               icon={<ClipboardCheckIcon className="w-5 h-5" />}
+              currentView={currentView}
+              onClick={setCurrentView}
+            />
+             <NavItem
+              view={View.SopTemplates}
+              label="SOP Templates"
+              icon={<MagicIcon className="w-5 h-5" />}
               currentView={currentView}
               onClick={setCurrentView}
             />

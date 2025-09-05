@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { InspectionTemplate, InspectionRecord, InspectionResult, Hotel } from '../types';
 import { XIcon, SearchIcon, CameraIcon, MagicIcon } from './icons';
 
@@ -8,6 +8,8 @@ interface InspectionManagerProps {
   onGenerateSop: (template: InspectionTemplate) => void;
 }
 
+const ORG_ID = 'org_hygiene_manager_group';
+
 const mockTemplates: InspectionTemplate[] = [
   // Kitchen Department
   {
@@ -15,6 +17,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'Daily Kitchen Hygiene & Safety',
     department: 'Kitchen Department',
     sector: 'Kitchen, Pastry', 
+    priority: 'High',
     items: [
       { id: 'KHS01', text: 'Structure & Cleaning: Floors, walls, ceilings are clean, in good repair, and free from pooling water. Cleaning schedules are being followed.' },
       { id: 'KHS02', text: 'Ventilation: Extraction systems are clean, free from grease, and working correctly.' },
@@ -28,6 +31,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'Food & Beverage Stores Safety',
     department: 'Kitchen Department',
     sector: 'Stores',
+    priority: 'Medium',
     items: [
       { id: 'STHS01', text: 'Dry goods are stored off the floor on clean, stable shelving.' },
       { id: 'STHS02', text: 'Stock rotation (FIFO) is being correctly applied.' },
@@ -41,6 +45,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'F&B Service Area Safety',
     department: 'Food & Beverage Department',
     sector: 'Food & Beverage',
+    priority: 'Medium',
     items: [
       { id: 'FNBHS01', text: 'Furniture & Floors: Tables, chairs, and highchairs are clean, stable, and sanitized. Floors are clean, dry, and free from hazards.' },
       { id: 'FNBHS02', text: 'Buffet Hot Holding: Hot holding units maintain food above 63°C. Temperatures are checked and logged.' },
@@ -52,6 +57,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'Food Court Area Cleanliness & Safety',
     department: 'Food & Beverage Department',
     sector: 'Food Court Area',
+    priority: 'Low',
     items: [
       { id: 'FCHS01', text: 'Tables and chairs are clean, sanitized, and checked for stability.' },
       { id: 'FCHS02', text: 'Waste receptacles are emptied regularly and do not overflow.' },
@@ -64,6 +70,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'Staff Cafeteria Hygiene & Safety',
     department: 'HR & STAFF WELFARE Department',
     sector: 'Staff Cafeteria',
+    priority: 'Medium',
     items: [
       { id: 'SCHS01', text: 'Serving Line & Surfaces: Counters, sneeze guards, and all food contact surfaces are visibly clean and have been sanitized.' },
       { id: 'SCHS02', text: 'Hot Holding Temperature Control: Hot food is held at or above 63°C. Temperatures are logged.' },
@@ -76,6 +83,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'Public Area & Housekeeping Safety',
     department: 'Housekeeping Department',
     sector: 'House Keeping',
+    priority: 'Low',
     items: [
       { id: 'HKHS01', text: 'Corridors, stairs, and public areas are clean, well-lit, and free of obstructions.' },
       { id: 'HKHS02', text: 'Floor surfaces are in good condition (no torn carpets, broken tiles).' },
@@ -88,6 +96,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'Recreation Facilities Safety Check',
     department: 'Recreation Department',
     sector: 'Recreation',
+    priority: 'Medium',
     items: [
       { id: 'RECHS01', text: 'Gym equipment is clean, sanitized, and functioning correctly with no damage.' },
       { id: 'RECHS02', text: 'Emergency stop buttons on gym equipment are clearly visible and working.' },
@@ -99,6 +108,7 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'Daily Pool Safety',
     department: 'Recreation Department',
     sector: 'Pools Safety',
+    priority: 'High',
     items: [
       { id: 'PSHS01', text: 'Pool water is clear, and the main drain at the bottom is clearly visible.' },
       { id: 'PSHS02', text: 'Water chemistry (chlorine/pH) is tested and recorded; levels are within approved range.' },
@@ -111,12 +121,20 @@ const mockTemplates: InspectionTemplate[] = [
     name: 'General Infrastructure & Fire Safety',
     department: 'Engineering Department',
     sector: 'Infrastructure',
+    priority: 'High',
     items: [
       { id: 'INFHS01', text: 'Fire escape routes are clearly marked, well-lit, and completely unobstructed.' },
       { id: 'INFHS02', text: 'Fire extinguishers are in their designated locations, fully charged, and with valid inspection tags.' },
       { id: 'INFHS03', text: 'Fire alarm panel indicates normal status with no faults.' },
     ],
   }
+];
+
+const initialRecords: InspectionRecord[] = [
+    { id: 'rec1', hotelName: 'Grand Hyatt Resort', templateName: 'Daily Kitchen Hygiene & Safety', department: 'Kitchen Department', sector: 'Kitchen, Pastry', date: '2024-07-29', inspector: 'Assistant One', results: [{itemId: 'KHS04', itemText: 'Refrigeration Temperatures: All refrigerators are operating at or below 4°C. Temperatures are logged.', status: 'fail'}], status: 'Completed', priority: 'High', organizationId: ORG_ID, dueDate: '2024-07-29' },
+    { id: 'rec2', hotelName: 'Seaside Palace', templateName: 'Daily Pool Safety', department: 'Recreation Department', sector: 'Pools Safety', date: '2024-07-28', inspector: 'Assistant Two', results: [], status: 'Completed', priority: 'High', organizationId: ORG_ID, dueDate: '2024-07-28' },
+    { id: 'rec3', hotelName: 'Grand Hyatt Resort', templateName: 'F&B Service Area Safety', department: 'Food & Beverage Department', sector: 'Food & Beverage', date: '2024-07-27', inspector: 'Assistant One', results: [], status: 'Draft', priority: 'Medium', organizationId: ORG_ID, dueDate: '2024-07-26' },
+    { id: 'rec4', hotelName: 'Seaside Palace', templateName: 'Public Area & Housekeeping Safety', department: 'Housekeeping Department', sector: 'House Keeping', date: '2024-07-26', inspector: 'Assistant Two', results: [], status: 'Completed', priority: 'Low', organizationId: ORG_ID, dueDate: '2024-07-26' },
 ];
 
 const InspectionDetailModal: React.FC<{ record: InspectionRecord; onClose: () => void; }> = ({ record, onClose }) => {
@@ -126,6 +144,7 @@ const InspectionDetailModal: React.FC<{ record: InspectionRecord; onClose: () =>
       onClick={onClose}
       aria-modal="true"
       role="dialog"
+      aria-labelledby="inspection-detail-title"
     >
       <div 
         className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl relative animate-fade-in-up max-h-[90vh] flex flex-col"
@@ -135,11 +154,11 @@ const InspectionDetailModal: React.FC<{ record: InspectionRecord; onClose: () =>
             <button 
               onClick={onClose} 
               className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full"
-              aria-label="Close"
+              aria-label="Close inspection details"
             >
               <XIcon className="w-6 h-6" />
             </button>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white pr-8">{record.hotelName} - {record.templateName}</h2>
+            <h2 id="inspection-detail-title" className="text-2xl font-bold text-slate-900 dark:text-white pr-8">{record.hotelName} - {record.templateName}</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               Department: {record.department} | Sector: {record.sector}
             </p>
@@ -173,24 +192,45 @@ const InspectionDetailModal: React.FC<{ record: InspectionRecord; onClose: () =>
   );
 };
 
+const PriorityBadge: React.FC<{ priority: 'High' | 'Medium' | 'Low' }> = ({ priority }) => {
+  const colors = {
+    High: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    Medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+    Low: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+  };
+  return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[priority]}`}>{priority}</span>;
+};
+
 export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLog, activeHotel, onGenerateSop }) => {
   type ViewState = 'LIST' | 'SELECT_TEMPLATE' | 'FORM';
   const [viewState, setViewState] = useState<ViewState>('LIST');
-  const [records, setRecords] = useState<InspectionRecord[]>([]);
+  const [records, setRecords] = useState<InspectionRecord[]>(initialRecords);
   const [selectedTemplate, setSelectedTemplate] = useState<InspectionTemplate | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<InspectionRecord | null>(null);
   const [currentResults, setCurrentResults] = useState<InspectionResult[]>([]);
   const [hotelName, setHotelName] = useState<string>('');
   const [inspectorName, setInspectorName] = useState<string>('Current User');
   const [summaryNotes, setSummaryNotes] = useState<string>('');
+  const [dueDate, setDueDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const notesTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const [currentItemIdForPhoto, setCurrentItemIdForPhoto] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('');
   const [inspectorFilter, setInspectorFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [priorityFilter, setPriorityFilter] = useState<string>('');
+
+  useEffect(() => {
+    if (focusedItemId && notesTextareaRefs.current[focusedItemId]) {
+        notesTextareaRefs.current[focusedItemId]?.focus();
+        setFocusedItemId(null); // Reset after focusing
+    }
+  }, [focusedItemId]);
 
   const uniqueDepartments = useMemo(() => {
     return [...new Set(mockTemplates.map(t => t.department))].sort();
@@ -219,6 +259,7 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
     })));
     setHotelName(activeHotel?.name || '');
     setInspectorName('Current User');
+    setDueDate(new Date().toISOString().split('T')[0]);
     setEditingRecordId(null);
     setSummaryNotes('');
     setViewState('FORM');
@@ -235,13 +276,18 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
     setHotelName(record.hotelName);
     setInspectorName(record.inspector);
     setSummaryNotes(record.summaryNotes || '');
+    setDueDate(record.dueDate || new Date().toISOString().split('T')[0]);
     setEditingRecordId(record.id);
     addAuditLog('Inspection Resumed', `Resumed draft for ${record.hotelName}: "${record.templateName}"`);
     setViewState('FORM');
   };
 
   const handleResultChange = (itemId: string, status: 'pass' | 'fail') => {
+    const oldStatus = currentResults.find(r => r.itemId === itemId)?.status;
     setCurrentResults(prev => prev.map(r => r.itemId === itemId ? {...r, status} : r));
+     if (status === 'fail' && oldStatus !== 'fail') {
+        setFocusedItemId(itemId);
+    }
   };
   
   const handleNotesChange = (itemId: string, notes: string) => {
@@ -268,7 +314,7 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
   };
 
   const saveOrUpdateInspection = (status: 'Draft' | 'Completed') => {
-    if (!selectedTemplate || (!hotelName.trim() || !inspectorName.trim())) {
+    if (!selectedTemplate || (!hotelName.trim() || !inspectorName.trim()) || !activeHotel) {
       alert("Please enter a Hotel/Resort name and Inspector's name.");
       return
     };
@@ -277,7 +323,7 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
         // Update existing record
         setRecords(prevRecords => prevRecords.map(rec => 
             rec.id === editingRecordId 
-            ? { ...rec, inspector: inspectorName, results: currentResults, status, date: new Date().toISOString().split('T')[0], summaryNotes: summaryNotes.trim() }
+            ? { ...rec, inspector: inspectorName, results: currentResults, status, date: new Date().toISOString().split('T')[0], summaryNotes: summaryNotes.trim(), priority: selectedTemplate.priority, dueDate }
             : rec
         ));
         const action = status === 'Completed' ? 'Inspection Completed' : 'Draft Saved';
@@ -296,6 +342,9 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
             results: currentResults,
             summaryNotes: summaryNotes.trim(),
             status,
+            priority: selectedTemplate.priority,
+            organizationId: activeHotel.organizationId,
+            dueDate,
         };
         setRecords(prev => [newRecord, ...prev]);
 
@@ -321,6 +370,8 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
       if (endDate && rec.date > endDate) return false;
       if (departmentFilter && rec.department !== departmentFilter) return false;
       if (inspectorFilter && rec.inspector !== inspectorFilter) return false;
+      if (statusFilter && rec.status !== statusFilter) return false;
+      if (priorityFilter && rec.priority !== priorityFilter) return false;
       
       const searchLower = searchQuery.toLowerCase();
       if (searchQuery && 
@@ -331,7 +382,7 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
 
       return true;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [records, startDate, endDate, departmentFilter, inspectorFilter, searchQuery, activeHotel]);
+  }, [records, startDate, endDate, departmentFilter, inspectorFilter, searchQuery, activeHotel, statusFilter, priorityFilter]);
 
   const handleExportCsv = () => {
     if (filteredRecords.length === 0) return;
@@ -340,8 +391,8 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
 
     const csvRows = [];
     const headers = [
-        'Inspection ID', 'Hotel Name', 'Date', 'Inspector', 'Department', 'Sector', 'Template Name',
-        'Item ID', 'Item Text', 'Status', 'Notes'
+        'Inspection ID', 'Hotel Name', 'Date', 'Due Date', 'Inspector', 'Department', 'Sector', 'Template Name', 'Priority', 'Status',
+        'Item ID', 'Item Text', 'Item Status', 'Notes'
     ];
     csvRows.push(headers.join(','));
 
@@ -358,8 +409,9 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
         for (const result of record.results) {
             const row = [
                 escapeCsvField(record.id), escapeCsvField(record.hotelName), escapeCsvField(record.date),
-                escapeCsvField(record.inspector), escapeCsvField(record.department), escapeCsvField(record.sector),
-                escapeCsvField(record.templateName), escapeCsvField(result.itemId), escapeCsvField(result.itemText),
+                escapeCsvField(record.dueDate), escapeCsvField(record.inspector), escapeCsvField(record.department),
+                escapeCsvField(record.sector), escapeCsvField(record.templateName), escapeCsvField(record.priority),
+                escapeCsvField(record.status), escapeCsvField(result.itemId), escapeCsvField(result.itemText),
                 escapeCsvField(result.status), escapeCsvField(result.notes)
             ];
             csvRows.push(row.join(','));
@@ -386,6 +438,8 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
       setDepartmentFilter('');
       setInspectorFilter('');
       setSearchQuery('');
+      setStatusFilter('');
+      setPriorityFilter('');
       addAuditLog('Filters Cleared', 'All inspection filters have been reset.');
   }, [addAuditLog]);
 
@@ -411,7 +465,7 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
                 />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                     <label htmlFor="department-filter" className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block">Department</label>
                     <select
@@ -440,6 +494,35 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
                         {uniqueInspectors.map(inspector => (
                             <option key={inspector} value={inspector}>{inspector}</option>
                         ))}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="status-filter" className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block">Status</label>
+                    <select
+                        id="status-filter"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm"
+                        aria-label="Filter by status"
+                    >
+                        <option value="">All Statuses</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Draft">Draft (Pending)</option>
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="priority-filter" className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block">Priority</label>
+                    <select
+                        id="priority-filter"
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value)}
+                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm"
+                        aria-label="Filter by priority"
+                    >
+                        <option value="">All Priorities</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
                     </select>
                 </div>
             </div>
@@ -483,31 +566,37 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
 
          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md overflow-x-auto">
             <table className="w-full text-left">
+                <caption className="sr-only">A table of inspection records, filterable by date, department, and inspector.</caption>
                 <thead className="border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                    <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Hotel</th>
-                    <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Audit Name</th>
-                    <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Department</th>
-                    <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Date</th>
-                    <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Inspector</th>
-                    <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Status</th>
-                    <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Failed</th>
-                    <th className="p-4"></th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Hotel</th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Audit Name</th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Date</th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Due Date</th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Inspector</th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Status</th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Priority</th>
+                    <th scope="col" className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Failed</th>
+                    <th scope="col" className="p-4"><span className="sr-only">Actions</span></th>
                 </tr>
                 </thead>
                 <tbody>
                     {filteredRecords.length > 0 ? filteredRecords.map(rec => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0); // Set to start of today for accurate comparison
+                        const isOverdue = rec.status === 'Draft' && rec.dueDate && new Date(rec.dueDate) < today;
                         const failedCount = rec.results.filter(r => r.status === 'fail').length;
                         return (
                             <tr key={rec.id} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
                                 <td className="p-4 font-medium text-slate-900 dark:text-white">{rec.hotelName}</td>
                                 <td className="p-4 text-slate-600 dark:text-slate-400">{rec.templateName}</td>
-                                <td className="p-4 text-slate-600 dark:text-slate-400">{rec.department}</td>
                                 <td className="p-4 text-slate-600 dark:text-slate-400">{rec.date}</td>
+                                <td className={`p-4 text-sm ${isOverdue ? 'text-red-500 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>{rec.dueDate || 'N/A'}</td>
                                 <td className="p-4 text-slate-600 dark:text-slate-400">{rec.inspector}</td>
                                 <td className="p-4">
                                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${rec.status === 'Completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'}`}>{rec.status}</span>
                                 </td>
+                                <td className="p-4"><PriorityBadge priority={rec.priority} /></td>
                                 <td className="p-4"><span className={failedCount > 0 ? 'text-red-500 font-bold' : 'text-green-500 font-bold'}>{failedCount}</span></td>
                                 <td className="p-4 text-right">
                                     {rec.status === 'Draft' ? (
@@ -519,7 +608,7 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
                             </tr>
                         )
                     }) : (
-                        <tr><td colSpan={8} className="text-center p-8 text-slate-500 dark:text-slate-400">No inspections found matching your criteria.</td></tr>
+                        <tr><td colSpan={9} className="text-center p-8 text-slate-500 dark:text-slate-400">No inspections found matching your criteria.</td></tr>
                     )}
                 </tbody>
             </table>
@@ -540,7 +629,10 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {templates.map(tpl => (
                             <div key={tpl.id} className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md flex flex-col hover:shadow-lg transition-shadow">
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{tpl.name}</h3>
+                                <div className="flex justify-between items-start">
+                                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">{tpl.name}</h3>
+                                  <PriorityBadge priority={tpl.priority} />
+                                </div>
                                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 flex-grow">Sector: {tpl.sector}</p>
                                 <div className="mt-6 space-y-2">
                                     <button onClick={() => startNewInspection(tpl)} className="w-full bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors">Start Inspection</button>
@@ -573,8 +665,8 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
                 </div>
             </div>
             <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-1">
                         <label htmlFor="hotel-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Hotel / Resort Name
                         </label>
@@ -588,7 +680,7 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
                             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 disabled:bg-slate-200 dark:disabled:bg-slate-600 disabled:cursor-not-allowed"
                         />
                     </div>
-                    <div>
+                    <div className="md:col-span-1">
                         <label htmlFor="inspector-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Inspector's Name
                         </label>
@@ -601,27 +693,41 @@ export const InspectionManager: React.FC<InspectionManagerProps> = ({ addAuditLo
                             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500"
                         />
                     </div>
+                     <div className="md:col-span-1">
+                        <label htmlFor="due-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Due Date
+                        </label>
+                        <input
+                            id="due-date"
+                            type="date"
+                            value={dueDate}
+                            onChange={(e) => setDueDate(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500"
+                        />
+                    </div>
                 </div>
 
                 {currentResults.map(result => (
                     <div key={result.itemId} className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                         <p className="font-semibold text-slate-800 dark:text-slate-200">{result.itemText}</p>
                         <div className="flex items-center gap-2 mt-2">
-                            <button onClick={() => handleResultChange(result.itemId, 'pass')} className={`px-4 py-1 rounded-md text-sm font-semibold ${result.status === 'pass' ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'}`}>Pass</button>
-                            <button onClick={() => handleResultChange(result.itemId, 'fail')} className={`px-4 py-1 rounded-md text-sm font-semibold ${result.status === 'fail' ? 'bg-red-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'}`}>Fail</button>
+                            <button onClick={() => handleResultChange(result.itemId, 'pass')} aria-label={`Mark '${result.itemText}' as Pass`} className={`px-4 py-1 rounded-md text-sm font-semibold ${result.status === 'pass' ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'}`}>Pass</button>
+                            <button onClick={() => handleResultChange(result.itemId, 'fail')} aria-label={`Mark '${result.itemText}' as Fail`} className={`px-4 py-1 rounded-md text-sm font-semibold ${result.status === 'fail' ? 'bg-red-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'}`}>Fail</button>
                         </div>
                         {result.status === 'fail' && (
                             <div className="mt-3 flex flex-col md:flex-row gap-4 animate-fade-in items-start">
                                 <textarea 
+                                  ref={el => { notesTextareaRefs.current[result.itemId] = el; }}
                                   value={result.notes || ''}
                                   onChange={(e) => handleNotesChange(result.itemId, e.target.value)} 
                                   placeholder="Add corrective action notes..." 
                                   rows={3} 
                                   className="w-full flex-grow p-2 text-sm bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                                  aria-label={`Corrective action notes for ${result.itemText}`}
                                 ></textarea>
                                 <div className="flex items-center gap-4 flex-shrink-0">
                                     <input type="file" accept="image/*" capture="environment" ref={photoInputRef} onChange={handleFileChange} className="hidden" />
-                                    <button onClick={() => handlePhotoAddClick(result.itemId)} className="flex items-center gap-2 text-sm font-semibold bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                                    <button onClick={() => handlePhotoAddClick(result.itemId)} aria-label={`Add photo for failed item: '${result.itemText}'`} className="flex items-center gap-2 text-sm font-semibold bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
                                         <CameraIcon className="w-5 h-5"/>
                                         <span>{result.photo ? 'Change Photo' : 'Add Photo'}</span>
                                     </button>

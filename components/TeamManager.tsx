@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { User, View } from '../types';
 import { ShieldCheckIcon } from './icons';
@@ -16,9 +17,10 @@ interface TeamManagerProps {
   currentUser: User;
   users: User[];
   setView: (view: View) => void;
+  onViewProfile: (user: User) => void;
 }
 
-export const TeamManager: React.FC<TeamManagerProps> = ({ currentUser, users, setView }) => {
+export const TeamManager: React.FC<TeamManagerProps> = ({ currentUser, users, setView, onViewProfile }) => {
   
   return (
     <>
@@ -39,14 +41,14 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ currentUser, users, se
           <ul className="divide-y divide-slate-200 dark:divide-slate-700">
             {users.filter(u => u.status === 'Active').map((member) => (
               <li key={member.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full" />
-                  <div>
+                <button onClick={() => onViewProfile(member)} className="flex items-center gap-4 text-left w-full hover:bg-slate-50 dark:hover:bg-slate-700/50 -m-4 p-4 rounded-lg transition-colors duration-200">
+                  <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full flex-shrink-0" />
+                  <div className="flex-grow">
                     <p className="font-semibold text-slate-900 dark:text-white">{member.name}</p>
                     <p className="text-sm text-slate-500 dark:text-slate-400">{member.email}</p>
                   </div>
-                </div>
-                <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+                </button>
+                <div className="flex items-center gap-4 w-full sm:w-auto justify-end sm:justify-start pl-16 sm:pl-0">
                   <RoleBadge role={member.role} />
                 </div>
               </li>
