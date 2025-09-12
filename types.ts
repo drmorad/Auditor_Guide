@@ -1,54 +1,17 @@
+
 export enum View {
-  Dashboard = 'Dashboard',
-  Documents = 'Documents',
-  Inspections = 'Inspections',
-  Team = 'Team',
-  SopGenerator = 'SopGenerator',
-  SopTemplates = 'SopTemplates',
-  AuditLog = 'AuditLog',
-  Settings = 'Settings',
-  AdminPanel = 'AdminPanel',
-  UserProfile = 'UserProfile',
-}
-
-export interface Hotel {
-  id: string;
-  name: string;
-  organizationId: string;
-}
-
-export interface User {
-  id:string;
-  name: string;
-  email: string;
-  password?: string;
-  role: 'Admin' | 'Editor' | 'Viewer';
-  avatar: string;
-  status: 'Active' | 'Pending';
-  verificationCode?: string;
-  hotelIds?: string[];
-  organizationId: string;
-}
-
-export interface Note {
-  id: string;
-  content: string;
-  timestamp: string;
-  highlightedText: string;
-}
-
-export interface Document {
-  id: string;
-  name: string;
-  category: 'SOP' | 'HACCP' | 'Audit' | 'Team File';
-  tags: string[];
-  lastModified: string;
-  modifiedBy: string;
-  content?: string;
-  type?: string;
-  embedLink?: string;
-  notes?: Note[];
-  organizationId: string;
+  Dashboard = 'DASHBOARD',
+  Documents = 'DOCUMENTS',
+  Inspections = 'INSPECTIONS',
+  Team = 'TEAM',
+  AuditLog = 'AUDIT_LOG',
+  Settings = 'SETTINGS',
+  SopGenerator = 'SOP_GENERATOR',
+  SopTemplates = 'SOP_TEMPLATES',
+  AdminPanel = 'ADMIN_PANEL',
+  UserProfile = 'USER_PROFILE',
+  Reporting = 'REPORTING',
+  Scheduler = 'SCHEDULER',
 }
 
 export interface SopStep {
@@ -58,64 +21,107 @@ export interface SopStep {
 
 export interface Sop {
   title: string;
-  purpose: string;
-  scope: string;
+  purpose?: string;
+  scope?: string;
   steps: SopStep[];
 }
+
+export interface Hotel {
+  id: string;
+  name: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  user: string;
+  details: string;
+  timestamp: Date;
+}
+
+export type UserRole = 'Admin' | 'Editor' | 'Viewer';
+export type UserStatus = 'Active' | 'Pending';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string; // URL to avatar image
+  role: UserRole;
+  status: UserStatus;
+  password?: string;
+  verificationCode?: string;
+  organizationId: string;
+  hotelIds?: string[];
+}
+
+export interface Note {
+  id: string;
+  content: string;
+  timestamp: string; // ISO date string
+  highlightedText: string;
+}
+
+export interface Document {
+  id: string;
+  name:string;
+  category: 'SOP' | 'HACCP' | 'Audit' | 'Team File';
+  tags: string[];
+  lastModified: string; // ISO date string
+  modifiedBy: string;
+  embedLink?: string;
+  type?: string;
+  content?: string;
+  notes?: Note[];
+  organizationId: string;
+}
+
+export interface ChatMessage {
+  sender: 'user' | 'ai';
+  text: string;
+}
+
+export interface InspectionResult {
+    questionId: string;
+    question: string;
+    status: 'pass' | 'fail' | 'pending';
+    photo?: string; // base64 string
+    notes?: string;
+}
+
+export interface InspectionRecord {
+    id: string;
+    templateId: string;
+    templateName: string;
+    date: string; // ISO date string
+    auditor: string;
+    hotelName: string;
+    department: string;
+    status: 'In Progress' | 'Completed' | 'Overdue';
+    results: InspectionResult[];
+    complianceScore: number;
+}
+
+export interface InspectionQuestion {
+    id: string;
+    text: string;
+    guidance: string;
+}
+
+export interface InspectionTemplate {
+    id: string;
+    name: string;
+    department: string;
+    questions: InspectionQuestion[];
+}
+
 
 export type SopTemplateCategory = 'Food Safety' | 'Health & Safety' | 'Operations' | 'HR';
 
 export interface SopTemplate {
   id: string;
-  title:string;
+  title: string;
   description: string;
   details: string;
   category: SopTemplateCategory;
-}
-
-export interface AuditLogEntry {
-  id: string;
-  timestamp: Date;
-  user: string;
-  action: string;
-  details: string;
-}
-
-// Types for Daily Inspections
-export interface InspectionResult {
-  itemId: string;
-  itemText: string;
-  status: 'pass' | 'fail' | 'n/a';
-  notes?: string;
-  photo?: string; // base64 encoded image
-}
-
-export interface InspectionRecord {
-  id: string;
-  hotelName: string;
-  templateName: string;
-  department: string;
-  sector: string;
-  date: string;
-  inspector: string;
-  results: InspectionResult[];
-  summaryNotes?: string;
-  status: 'Completed' | 'Draft';
-  priority: 'High' | 'Medium' | 'Low';
-  organizationId: string;
-  dueDate?: string;
-}
-
-export interface InspectionChecklistItem {
-  id: string;
-  text: string;
-}
-
-export interface InspectionTemplate {
-  id: string;
-  name: string;
-  department: string;
-  sector: string;
-  priority: 'High' | 'Medium' | 'Low';
-  items: InspectionChecklistItem[];
 }

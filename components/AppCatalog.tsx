@@ -1,6 +1,10 @@
 import React from 'react';
 import { DashboardIcon, DocumentIcon, MagicIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon } from './icons';
 
+interface AppCatalogProps {
+  onGetStarted: () => void;
+}
+
 const FeatureCard: React.FC<{ icon: React.ReactNode; title: string; description: string; }> = ({ icon, title, description }) => (
   <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300">
     <div className="flex items-center gap-4">
@@ -13,7 +17,7 @@ const FeatureCard: React.FC<{ icon: React.ReactNode; title: string; description:
   </div>
 );
 
-export const AppCatalog: React.FC = () => (
+export const AppCatalog: React.FC<AppCatalogProps> = ({ onGetStarted }) => (
   <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 p-4 sm:p-6 md:p-8 animate-fade-in">
     <div className="max-w-5xl mx-auto">
       {/* Header */}
@@ -26,6 +30,16 @@ export const AppCatalog: React.FC = () => (
         </div>
         <p className="text-xl text-slate-600 dark:text-slate-400 mt-2">The Smart Compliance Hub for Modern Operations</p>
       </header>
+      
+      <div className="text-center my-10">
+        <button 
+          onClick={onGetStarted}
+          className="bg-primary-600 text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-primary-700 transition-transform transform hover:scale-105 shadow-lg"
+        >
+          Get Started
+        </button>
+      </div>
+
 
       {/* Introduction */}
       <section className="mb-12">
@@ -145,6 +159,9 @@ export const AppCatalog: React.FC = () => (
             </div>
         </div>
       </section>
+      <footer className="text-center py-6 mt-8 border-t border-slate-200 dark:border-slate-700">
+        <p className="text-slate-500 dark:text-slate-400 text-sm">© 2024 Auditors Guide. All rights reserved.</p>
+      </footer>
     </div>
   </div>
 );

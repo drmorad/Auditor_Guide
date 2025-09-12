@@ -32,6 +32,34 @@
         }
       }
     </script>
+    <style type="text/css">
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+        main {
+          padding: 0 !important;
+          margin: 0 !important;
+          overflow: visible !important;
+        }
+        .printable-area {
+          box-shadow: none !important;
+          border: none !important;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          max-width: 100%;
+          border-radius: 0;
+        }
+        html, body {
+          background-color: #fff !important;
+        }
+      }
+    </style>
   <script type="importmap">
 {
   "imports": {

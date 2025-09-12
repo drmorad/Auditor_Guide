@@ -1,6 +1,4 @@
-
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sop, View, Document } from '../types';
 import { generateSop } from '../services/geminiService';
 import { MagicIcon, DocumentIcon } from './icons';
@@ -20,15 +18,19 @@ const SopDisplay: React.FC<{ sop: Sop }> = ({ sop }) => {
         <div className="mt-6 bg-white dark:bg-slate-800 p-6 rounded-lg shadow-inner animate-fade-in space-y-4">
             <h2 className="text-2xl font-bold text-primary-600 dark:text-primary-400 border-b pb-2 border-slate-200 dark:border-slate-700">{sop.title}</h2>
             
-            <div>
-                <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Purpose</h3>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{sop.purpose}</p>
-            </div>
+            {sop.purpose && (
+              <div>
+                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Purpose</h3>
+                  <p className="mt-1 text-slate-600 dark:text-slate-400">{sop.purpose}</p>
+              </div>
+            )}
             
-            <div>
-                <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Scope</h3>
-                <p className="mt-1 text-slate-600 dark:text-slate-400">{sop.scope}</p>
-            </div>
+            {sop.scope && (
+              <div>
+                  <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Scope</h3>
+                  <p className="mt-1 text-slate-600 dark:text-slate-400">{sop.scope}</p>
+              </div>
+            )}
 
             <div>
                 <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Procedure</h3>
@@ -49,16 +51,47 @@ interface SopGeneratorProps {
   setView: (view: View) => void;
   addAuditLog: (action: string, details: string) => void;
   onSaveSop: (documentData: { name: string; category: Document['category']; tags: string[]; content: string; }) => void;
-  initialData?: { topic: string; details: string; } | null;
+  initialData?: { topic: string; details: string; } | Sop | null;
+  onClearInitialData: () => void;
 }
 
-export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog, onSaveSop, initialData }) => {
-  const [topic, setTopic] = useState(initialData?.topic || '');
-  const [details, setDetails] = useState(initialData?.details || '');
+export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog, onSaveSop, initialData, onClearInitialData }) => {
+  const [topic, setTopic] = useState('');
+  const [details, setDetails] = useState('');
   const [generatedSop, setGeneratedSop] = useState<Sop | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialData) {
+        // Check if it's a full Sop object
+        if ('steps' in initialData) {
+            setGeneratedSop(initialData);
+            setTopic(initialData.title);
+            // Reconstruct details from the SOP for potential re-generation
+            const detailsFromSop = `Purpose: ${initialData.purpose}\nScope: ${initialData.scope}\nSteps:\n${initialData.steps.map(s => `- ${s.title}: ${s.description}`).join('\n')}`;
+            setDetails(detailsFromSop);
+        } 
+        // Check if it's the simple {topic, details} object
+        else if ('topic' in initialData) {
+            setTopic(initialData.topic);
+            setDetails(initialData.details);
+            setGeneratedSop(null); // Clear any previous SOP
+        }
+    } else {
+        // Clear everything if initialData is null/undefined
+        setTopic('');
+        setDetails('');
+        setGeneratedSop(null);
+    }
+
+    // Cleanup function to clear the initial data in App.tsx when the component is unmounted
+    return () => {
+        onClearInitialData();
+    };
+}, [initialData, onClearInitialData]);
+
 
   const handleGenerate = async () => {
     if (!topic.trim()) {
@@ -81,8 +114,8 @@ export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog
   
   const formatSopContent = (sop: Sop): string => {
     let content = `Title: ${sop.title}\n\n`;
-    content += `Purpose: ${sop.purpose}\n\n`;
-    content += `Scope: ${sop.scope}\n\n`;
+    if (sop.purpose) content += `Purpose: ${sop.purpose}\n\n`;
+    if (sop.scope) content += `Scope: ${sop.scope}\n\n`;
     content += `Procedure:\n`;
     sop.steps.forEach((step, index) => {
         content += `${index + 1}. ${step.title}\n`;

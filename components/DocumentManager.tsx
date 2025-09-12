@@ -1,12 +1,11 @@
-
-
 import React, { useState, useRef, useMemo } from 'react';
-import { Document, View } from '../types';
+import { Document, View, Sop } from '../types';
 import { MagicIcon, SearchIcon, EditIcon, UploadIcon } from './icons';
 import { EditDocumentModal } from './EditDocumentModal';
 import { UploadPreviewModal } from './UploadPreviewModal';
 import { DocumentPreview } from './DocumentPreview';
 import { uploadFile } from '../services/googleDriveService';
+import { generateSopFromDocument } from '../services/geminiService';
 
 const CategoryBadge: React.FC<{ category: Document['category'] }> = ({ category }) => {
   const colors = {
@@ -23,9 +22,10 @@ interface DocumentManagerProps {
   addAuditLog: (action: string, details: string) => void;
   documents: Document[];
   setDocuments: React.Dispatch<React.SetStateAction<Document[]>>;
+  onSopCreated: (sop: Sop) => void;
 }
 
-export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments }) => {
+export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments, onSopCreated }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [previewingDocument, setPreviewingDocument] = useState<Document | null>(null);
@@ -103,7 +103,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
         setUploadingDocument({ file, name: file.name, content, type: file.type });
       };
 
-      if (file.type.startsWith('text/')) {
+      if (file.type.startsWith('text/') || file.type === '') {
         reader.readAsText(file);
       } else {
         reader.readAsDataURL(file);
@@ -118,6 +118,19 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
   const handleCloseUploadPreview = () => {
     setUploadingDocument(null);
   }
+  
+  const handleAnalyzeAndCreateSop = async (fileContent: string, mimeType: string) => {
+    try {
+        addAuditLog('AI Analysis Started', `Analyzing uploaded document to create SOP.`);
+        const generatedSop = await generateSopFromDocument(fileContent, mimeType);
+        onSopCreated(generatedSop);
+        setUploadingDocument(null);
+    } catch (error) {
+        console.error("SOP Generation from document failed", error);
+        // Here you would show a more user-friendly error in the modal itself
+        addAuditLog('AI Analysis Failed', `Failed to generate SOP from document.`);
+    }
+  };
 
   const handleSaveUpload = async (details: { name: string; category: Document['category']; tags: string[] }) => {
     if (!uploadingDocument?.file) return;
@@ -176,6 +189,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
           fileType={uploadingDocument.type}
           onClose={handleCloseUploadPreview}
           onSave={handleSaveUpload}
+          onAnalyze={handleAnalyzeAndCreateSop}
           isSaving={isSavingUpload}
         />
       )}
@@ -204,6 +218,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
                     onChange={handleFileChange}
                     className="hidden"
                     aria-hidden="true"
+                    accept="image/png, image/jpeg, .pdf, .txt, text/plain"
                   />
                   <button 
                     onClick={handleUploadClick}

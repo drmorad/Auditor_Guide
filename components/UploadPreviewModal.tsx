@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Document } from '../types';
-import { XIcon } from './icons';
+import { XIcon, MagicIcon } from './icons';
 
 interface UploadPreviewModalProps {
   fileName: string;
@@ -9,6 +8,7 @@ interface UploadPreviewModalProps {
   fileType: string;
   onClose: () => void;
   onSave: (details: { name: string; category: Document['category']; tags: string[] }) => void;
+  onAnalyze: (fileContent: string, mimeType: string) => void;
   isSaving: boolean;
 }
 
@@ -16,10 +16,14 @@ const LoadingSpinner: React.FC = () => (
     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
 );
 
-export const UploadPreviewModal: React.FC<UploadPreviewModalProps> = ({ fileName, fileContent, fileType, onClose, onSave, isSaving }) => {
+export const UploadPreviewModal: React.FC<UploadPreviewModalProps> = ({ fileName, fileContent, fileType, onClose, onSave, onAnalyze, isSaving }) => {
   const [name, setName] = useState(fileName);
   const [category, setCategory] = useState<Document['category']>('Team File');
   const [tags, setTags] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  const isAnalysable = fileType.startsWith('image/') || fileType.startsWith('text/') || fileType === '';
+
 
   const handleSave = () => {
     onSave({
@@ -29,6 +33,12 @@ export const UploadPreviewModal: React.FC<UploadPreviewModalProps> = ({ fileName
     });
   };
   
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    await onAnalyze(fileContent, fileType);
+    setIsAnalyzing(false);
+  };
+  
   const renderPreview = () => {
     if (fileType.startsWith('image/')) {
         return <img src={fileContent} alt="Preview" className="max-w-full max-h-full object-contain mx-auto" />;
@@ -36,7 +46,7 @@ export const UploadPreviewModal: React.FC<UploadPreviewModalProps> = ({ fileName
     if (fileType === 'application/pdf') {
         return <iframe src={fileContent} title="PDF Preview" className="w-full h-full"></iframe>;
     }
-    if (fileType.startsWith('text/')) {
+    if (fileType.startsWith('text/') || fileType === '') {
         return <pre className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap text-sm font-mono">{fileContent}</pre>;
     }
     return (
@@ -124,14 +134,23 @@ export const UploadPreviewModal: React.FC<UploadPreviewModalProps> = ({ fileName
          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 rounded-b-xl">
             <button 
               onClick={onClose} 
-              disabled={isSaving}
+              disabled={isSaving || isAnalyzing}
               className="bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
+            {isAnalysable && (
+                 <button 
+                  onClick={handleAnalyze} 
+                  disabled={isSaving || isAnalyzing}
+                  className="bg-fuchsia-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-fuchsia-700 transition-colors shadow-md flex items-center justify-center gap-2 w-48 disabled:bg-fuchsia-400"
+                >
+                  {isAnalyzing ? <LoadingSpinner /> : <><MagicIcon className="w-5 h-5"/> Analyze & Create SOP</>}
+                </button>
+            )}
              <button 
               onClick={handleSave} 
-              disabled={isSaving}
+              disabled={isSaving || isAnalyzing}
               className="bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md flex items-center justify-center w-32 disabled:bg-primary-400"
             >
               {isSaving ? <LoadingSpinner /> : 'Save to Hub'}

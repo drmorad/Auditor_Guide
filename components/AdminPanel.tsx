@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { User, Hotel } from '../types';
-import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon } from './icons';
+import { User, Hotel, InspectionTemplate } from '../types';
+import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon, UserPlusIcon, ClipboardDocumentListIcon } from './icons';
 import { ConfirmRoleChangeModal } from './ConfirmRoleChangeModal';
+import { InviteUserModal } from './InviteUserModal';
+import { CreateTemplateModal } from './CreateTemplateModal';
 
 const RoleBadge: React.FC<{ role: User['role'] }> = ({ role }) => {
   const colors = {
@@ -15,14 +17,16 @@ const RoleBadge: React.FC<{ role: User['role'] }> = ({ role }) => {
 interface AdminPanelProps {
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
-  onSendInvite: (name: string, email: string, role: User['role']) => void;
+  onSendInvite: (user: Omit<User, 'id' | 'avatar'>) => void;
   addAuditLog: (action: string, details: string) => void;
   currentUser: User;
   hotels: Hotel[];
   onAddHotel: (name: string) => void;
+  inspectionTemplates: InspectionTemplate[];
+  onCreateTemplate: (template: InspectionTemplate) => void;
 }
 
-type AdminTab = 'users' | 'hotels';
+type AdminTab = 'users' | 'hotels' | 'templates';
 
 const AssignHotelsModal: React.FC<{
   user: User;
@@ -99,49 +103,26 @@ const AssignHotelsModal: React.FC<{
 };
 
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<User['role']>('Viewer');
-  const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
+export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel, inspectionTemplates, onCreateTemplate }) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newHotelName, setNewHotelName] = useState('');
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [assigningHotelsToUser, setAssigningHotelsToUser] = useState<User | null>(null);
   const [roleChangeConfirmation, setRoleChangeConfirmation] = useState<{ user: User; newRole: User['role'] } | null>(null);
 
   const pendingUsers = useMemo(() => users.filter(u => u.status === 'Pending'), [users]);
   const activeUsers = useMemo(() => users.filter(u => u.status === 'Active'), [users]);
 
-  const handleInviteSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMessage('');
-
-    if (!name.trim() || !email.trim()) {
-      setError('Name and email are required.');
-      return;
-    }
-    if (users.some(u => u.email.toLowerCase() === email.trim().toLowerCase())) {
-        setError('A user with this email already exists.');
+  const handleInviteSave = (newUser: Omit<User, 'id' | 'avatar'>) => {
+    if (users.some(u => u.email.toLowerCase() === newUser.email.trim().toLowerCase())) {
+        // This check should ideally be inside the modal, but as a safeguard:
+        alert('A user with this email already exists.');
         return;
     }
-
-    onSendInvite(name.trim(), email.trim(), role);
-    setSuccessMessage(`Invite sent successfully to ${email.trim()}!`);
-    setName('');
-    setEmail('');
-    setRole('Viewer');
-    setTimeout(() => setSuccessMessage(''), 5000);
-  };
-  
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code).then(() => {
-        setCopiedCode(code);
-        setTimeout(() => setCopiedCode(null), 2000);
-    });
+    onSendInvite(newUser);
+    setIsInviteModalOpen(false);
   };
   
   const handleConfirmRoleChange = () => {
@@ -161,6 +142,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
       onAddHotel(newHotelName);
       setNewHotelName('');
     }
+  };
+  
+  const handleCreateTemplate = (template: InspectionTemplate) => {
+    onCreateTemplate(template);
+    setIsTemplateModalOpen(false);
   };
 
   const handleSaveHotelAssignments = (userId: string, newHotelIds: string[]) => {
@@ -194,71 +180,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
   
   const renderUserManagement = () => (
     <div className="space-y-6 animate-fade-in">
-        {/* Invite Form Section */}
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
-            <form onSubmit={handleInviteSubmit} className="space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center">
-                        <MailIcon className="w-6 h-6 text-primary-600 dark:text-primary-400"/>
-                    </div>
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Send New Invitation</h2>
-                </div>
-                {error && <p role="alert" className="text-sm text-red-500">{error}</p>}
-                {successMessage && <p role="status" aria-live="polite" className="text-sm text-green-500">{successMessage}</p>}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label htmlFor="reg-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
-                        <input id="reg-name" type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg"/>
-                    </div>
-                     <div>
-                        <label htmlFor="reg-email" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email Address</label>
-                        <input id="reg-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg"/>
-                    </div>
-                </div>
-                <div>
-                    <label htmlFor="reg-role" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Role</label>
-                    <select id="reg-role" value={role} onChange={e => setRole(e.target.value as User['role'])} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg">
-                        <option value="Viewer">Viewer</option>
-                        <option value="Editor">Editor</option>
-                        <option value="Admin">Admin</option>
-                    </select>
-                </div>
-                 <div className="flex justify-end">
-                    <button type="submit" className="bg-primary-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-primary-700 transition-colors shadow-md">
-                        Send Invite
-                    </button>
-                </div>
-            </form>
-        </div>
-        
         {/* Pending Invitations List Section */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
-             <h2 className="text-xl font-semibold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
-                Pending Invitations
-             </h2>
+             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                    User Management
+                </h2>
+                <button
+                    onClick={() => setIsInviteModalOpen(true)}
+                    className="flex items-center gap-2 bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md"
+                >
+                    <UserPlusIcon className="w-5 h-5" />
+                    Invite New Member
+                </button>
+             </div>
+             
+             <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">Pending Invitations</h3>
              <div className="space-y-3">
                 {pendingUsers.length > 0 ? pendingUsers.map(user => (
                     <div key={user.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                         <div>
                             <p className="font-semibold text-slate-800 dark:text-slate-200">{user.name}</p>
                             <p className="text-sm text-slate-500 dark:text-slate-400">{user.email} - <span className="font-medium">{user.role}</span></p>
-                        </div>
-                         <div className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                            <span>Verification Code:</span>
-                            <div className="flex items-center gap-1 bg-slate-200 dark:bg-slate-600 px-2 py-1 rounded">
-                                <span className="font-bold tracking-widest text-primary-600 dark:text-primary-400">{user.verificationCode}</span>
-                                <button type="button" onClick={() => handleCopyCode(user.verificationCode!)} className="text-slate-500 hover:text-primary-500 transition-colors" aria-label="Copy code">
-                                    {copiedCode === user.verificationCode ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                        </svg>
-                                    )}
-                                </button>
-                            </div>
                         </div>
                     </div>
                 )) : (
@@ -362,6 +305,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
         </div>
      </div>
   );
+  
+    const renderTemplateManagement = () => (
+    <div className="space-y-6 animate-fade-in">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
+             <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                    Inspection Templates
+                </h2>
+                <button
+                    onClick={() => setIsTemplateModalOpen(true)}
+                    className="flex items-center gap-2 bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md"
+                >
+                    <UserPlusIcon className="w-5 h-5" />
+                    Create New Template
+                </button>
+             </div>
+             
+             <div className="space-y-3">
+                {inspectionTemplates.length > 0 ? inspectionTemplates.map(template => (
+                    <div key={template.id} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                        <p className="font-semibold text-slate-800 dark:text-slate-200">{template.name}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{template.department} - {template.questions.length} questions</p>
+                    </div>
+                )) : (
+                    <p className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">No custom templates created yet.</p>
+                )}
+             </div>
+        </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-fade-in">
@@ -371,14 +344,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
           <nav className="-mb-px flex space-x-6" aria-label="Tabs">
             <TabButton tabName="users" label="User Management" icon={<TeamIcon className="w-5 h-5"/>} />
             <TabButton tabName="hotels" label="Hotel Management" icon={<BuildingOfficeIcon className="w-5 h-5"/>} />
+            <TabButton tabName="templates" label="Inspection Templates" icon={<ClipboardDocumentListIcon className="w-5 h-5"/>} />
           </nav>
         </div>
 
         <div className="mt-6">
             {activeTab === 'users' && renderUserManagement()}
             {activeTab === 'hotels' && renderHotelManagement()}
+            {activeTab === 'templates' && renderTemplateManagement()}
         </div>
         
+        {isInviteModalOpen && (
+            <InviteUserModal
+                onClose={() => setIsInviteModalOpen(false)}
+                onSave={handleInviteSave}
+                organizationId={currentUser.organizationId}
+            />
+        )}
+
+        {isTemplateModalOpen && (
+            <CreateTemplateModal
+                onClose={() => setIsTemplateModalOpen(false)}
+                onSave={handleCreateTemplate}
+            />
+        )}
+
         {assigningHotelsToUser && (
           <AssignHotelsModal
             user={assigningHotelsToUser}
