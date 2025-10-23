@@ -1,10 +1,11 @@
-import { User, Document, Hotel, InspectionRecord, InspectionTemplate } from './types';
+
+import { User, Document, Hotel, InspectionRecord, InspectionTemplate, Task, Area } from './types';
 
 export const MOCK_USERS: User[] = [
-    { id: 'user-1', name: 'Alice Johnson', email: 'alice@example.com', password: 'password', avatar: 'https://i.pravatar.cc/150?u=alice@example.com', role: 'Admin', status: 'Active', organizationId: 'org-1', hotelIds: ['hotel-1', 'hotel-2'] },
-    { id: 'user-2', name: 'Bob Williams', email: 'bob@example.com', password: 'password', avatar: 'https://i.pravatar.cc/150?u=bob@example.com', role: 'Editor', status: 'Active', organizationId: 'org-1', hotelIds: ['hotel-1'] },
-    { id: 'user-3', name: 'Charlie Brown', email: 'charlie@example.com', password: 'password', avatar: 'https://i.pravatar.cc/150?u=charlie@example.com', role: 'Viewer', status: 'Active', organizationId: 'org-1', hotelIds: ['hotel-2'] },
-    { id: 'user-4', name: 'Diana Prince', email: 'diana@example.com', verificationCode: 'AB12CD', avatar: 'https://i.pravatar.cc/150?u=diana@example.com', role: 'Viewer', status: 'Pending', organizationId: 'org-1' },
+    { id: 'user-1', name: 'Alice Johnson', email: 'alice@example.com', password: 'password', avatar: 'https://i.pravatar.cc/150?u=alice@example.com', role: 'Admin', status: 'Active', organizationId: 'org-1', hotelIds: ['hotel-1', 'hotel-2'], jobTitle: 'General Manager' },
+    { id: 'user-2', name: 'Bob Williams', email: 'bob@example.com', password: 'password', avatar: 'https://i.pravatar.cc/150?u=bob@example.com', role: 'Editor', status: 'Active', organizationId: 'org-1', hotelIds: ['hotel-1'], jobTitle: 'Executive Chef' },
+    { id: 'user-3', name: 'Charlie Brown', email: 'charlie@example.com', password: 'password', avatar: 'https://i.pravatar.cc/150?u=charlie@example.com', role: 'Viewer', status: 'Active', organizationId: 'org-1', hotelIds: ['hotel-2'], jobTitle: 'Front Desk Supervisor' },
+    { id: 'user-4', name: 'Diana Prince', email: 'diana@example.com', verificationCode: 'AB12CD', avatar: 'https://i.pravatar.cc/150?u=diana@example.com', role: 'Viewer', status: 'Pending', organizationId: 'org-1', jobTitle: 'New Hire' },
 ];
 
 export const MOCK_DOCUMENTS: Document[] = [
@@ -13,9 +14,24 @@ export const MOCK_DOCUMENTS: Document[] = [
     { id: 'doc-3', name: 'Q3 Fire Safety Audit', category: 'Audit', tags: ['safety', 'fire'], lastModified: '2024-07-20', modifiedBy: 'Bob Williams', embedLink: 'https://drive.google.com/file/d/1yjwZ6k3-L2D5-gH-AN532e-4-y5C-bYt/preview', type: 'application/pdf', organizationId: 'org-1', notes: [] },
 ];
 
+const MOCK_HOTEL_1_AREAS: Area[] = [
+    { id: 'area-1-1', name: 'The Grand Restaurant', type: 'Outlet' },
+    { id: 'area-1-2', name: 'Lobby Bar', type: 'Bar' },
+    { id: 'area-1-3', name: 'Main Pool', type: 'Pool' },
+    { id: 'area-1-4', name: 'Receiving Dock', type: 'Back of House' },
+];
+
+const MOCK_HOTEL_2_AREAS: Area[] = [
+    { id: 'area-2-1', name: 'Ocean View Grill', type: 'Outlet' },
+    { id: 'area-2-2', name: 'Sunset Bar', type: 'Bar' },
+    { id: 'area-2-3', name: 'Infinity Pool', type: 'Pool' },
+    { id: 'area-2-4', name: 'Main Lobby', type: 'Public Area' },
+];
+
+
 export const MOCK_HOTELS: Hotel[] = [
-    { id: 'hotel-1', name: 'Grand Hyatt Resort' },
-    { id: 'hotel-2', name: 'Seaside Palace' },
+    { id: 'hotel-1', name: 'Grand Hyatt Resort', areas: MOCK_HOTEL_1_AREAS },
+    { id: 'hotel-2', name: 'Seaside Palace', areas: MOCK_HOTEL_2_AREAS },
 ];
 
 export const MOCK_INSPECTION_TEMPLATES: InspectionTemplate[] = [
@@ -80,6 +96,14 @@ export const MOCK_INSPECTION_TEMPLATES: InspectionTemplate[] = [
     }
 ];
 
+export const MOCK_TASKS: Task[] = [
+    { id: 'task-1', name: 'Prepare Q3 Audit Report', start: '2024-08-05', end: '2024-08-09', dependencies: [], assigneeId: 'user-1', status: 'completed' },
+    { id: 'task-2', name: 'Review Kitchen SOPs', start: '2024-08-08', end: '2024-08-12', dependencies: [], assigneeId: 'user-2', status: 'in-progress' },
+    { id: 'task-3', name: 'Finalize HACCP Plan', start: '2024-08-13', end: '2024-08-16', dependencies: ['task-2'], assigneeId: 'user-1', status: 'pending' },
+    { id: 'task-4', name: 'Schedule Fire Safety Training', start: '2024-08-10', end: '2024-08-14', dependencies: [], assigneeId: 'user-3', status: 'in-progress' },
+    { id: 'task-5', name: 'Distribute Training Materials', start: '2024-08-15', end: '2024-08-16', dependencies: ['task-4'], assigneeId: 'user-3', status: 'pending' },
+    { id: 'task-6', name: 'Present Audit Findings', start: '2024-08-19', end: '2024-08-20', dependencies: ['task-1', 'task-3'], assigneeId: 'user-1', status: 'pending' },
+];
 
 export const MOCK_INSPECTION_RECORDS: InspectionRecord[] = [
     // ... some mock records if needed for reporting

@@ -242,15 +242,22 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
 
   const renderHighlightedContent = useMemo(() => {
     if (!isNativeTextDocument || !document.content) return null;
-    let content = document.content;
+    const content = document.content;
     const highlights = document.notes?.map(n => n.highlightedText) || [];
     
     if (!showNotes || highlights.length === 0) {
         return <pre className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">{content}</pre>;
     }
 
-    const uniqueHighlights = [...new Set(highlights)];
-    const parts = content.split(new RegExp(`(${uniqueHighlights.map(h => h.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')})`, 'g'));
+    // FIX: Filter out any non-string or empty values from highlights to ensure type safety and prevent invalid regex patterns.
+    const uniqueHighlights = [...new Set(highlights)].filter((h): h is string => typeof h === 'string' && h.length > 0);
+
+    if (uniqueHighlights.length === 0) {
+      return <pre className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">{content}</pre>;
+    }
+    
+    const regex = new RegExp(`(${uniqueHighlights.map(h => h.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')})`, 'g');
+    const parts = content.split(regex);
 
     return (
         <pre className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">

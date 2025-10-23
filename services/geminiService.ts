@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Sop } from '../types';
+import { Sop, UserRole } from '../types';
 
 const API_KEY = process.env.API_KEY;
 
@@ -119,6 +119,40 @@ export const generateSopFromDocument = async (fileContent: string, mimeType: str
     }
 };
 
+export const reviewSop = async (sopContent: string): Promise<string> => {
+  try {
+    const prompt = `
+      You are an expert in operational procedure analysis. Review the following Standard Operating Procedure (SOP).
+      Your goal is to provide actionable feedback to improve its clarity, completeness, and adherence to best practices.
+
+      Analyze the SOP based on the following criteria:
+      1.  **Clarity:** Is the language clear, concise, and unambiguous? Are there any jargon or confusing terms?
+      2.  **Completeness:** Does it include essential sections like Purpose, Scope, and detailed procedural steps? Is any critical information missing?
+      3.  **Actionability:** Are the steps written in an active voice? Are they easy for an employee to follow and execute?
+      4.  **Formatting & Structure:** Is the SOP well-organized? Is the formatting easy to read?
+
+      Provide your feedback in a structured format. Use markdown for headings (e.g., "**Overall Summary**"), bold text for emphasis, and bullet points (using '*') for specific suggestions. Start with an overall summary, then provide a point-by-point breakdown of recommended improvements.
+
+      --- SOP FOR REVIEW ---
+      ${sopContent}
+      --- END SOP ---
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        temperature: 0.3, // Lower temp for more deterministic, analytical feedback
+      },
+    });
+
+    return response.text;
+  } catch (error) {
+    console.error("Error reviewing SOP:", error);
+    throw new Error("Failed to get SOP review from the AI assistant.");
+  }
+};
+
 
 export const getChatResponse = async (question: string, context: string): Promise<string> => {
     try {
@@ -148,4 +182,62 @@ export const getChatResponse = async (question: string, context: string): Promis
         console.error("Error getting chat response:", error);
         throw new Error("Failed to get a response from the AI assistant.");
     }
+};
+
+export const suggestUserRole = async (jobTitle: string): Promise<{ role: UserRole; reasoning: string; }> => {
+  const roleSuggestionSchema = {
+    type: Type.OBJECT,
+    properties: {
+      role: {
+        type: Type.STRING,
+        enum: ['Admin', 'Editor', 'Viewer'],
+        description: "The suggested role based on the job title.",
+      },
+      reasoning: {
+        type: Type.STRING,
+        description: "A brief explanation for the role suggestion.",
+      },
+    },
+    required: ["role", "reasoning"],
+  };
+
+  try {
+    const prompt = `
+      You are an expert HR and Operations consultant for the hospitality industry, specializing in compliance management systems.
+      Your task is to suggest a user role for a new team member based on their job title.
+
+      The application has three user roles:
+      - **Admin:** Full access. Can manage users, settings, hotels, and all documents/inspections. Suitable for General Managers, Directors of Operations, or system administrators.
+      - **Editor:** Can create and edit documents, and conduct inspections. Cannot manage users or system settings. Suitable for department heads like Executive Chefs, Head of Housekeeping, or Maintenance Supervisors.
+      - **Viewer:** Read-only access. Can view documents and completed inspection reports. Cannot create or edit anything. Suitable for line-level staff, trainees, or external auditors.
+
+      Based on the following job title, provide the most appropriate role and a brief reasoning for your choice.
+      Job Title: "${jobTitle}"
+
+      The output must strictly conform to the provided JSON schema.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: roleSuggestionSchema,
+        temperature: 0.2,
+      },
+    });
+
+    const jsonText = response.text;
+    const suggestionData = JSON.parse(jsonText);
+
+    if (!suggestionData.role || !suggestionData.reasoning || !['Admin', 'Editor', 'Viewer'].includes(suggestionData.role)) {
+      throw new Error("Invalid role suggestion structure received from API.");
+    }
+
+    return suggestionData as { role: UserRole; reasoning: string; };
+
+  } catch (error) {
+    console.error("Error suggesting user role:", error);
+    throw new Error("Failed to get role suggestion from the AI assistant.");
+  }
 };

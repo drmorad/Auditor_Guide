@@ -1,5 +1,4 @@
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Hotel, AuditLogEntry, User } from '../types';
 import { TrendingUpIcon, DocumentIcon, ClipboardCheckIcon, AuditLogIcon, ExclamationTriangleIcon } from './icons';
@@ -82,6 +81,96 @@ const timeAgo = (date: Date): string => {
     return Math.floor(seconds) + " seconds ago";
 }
 
+interface FollowUpItem {
+    id: string;
+    type: 'Corrective Action' | 'Overdue Inspection';
+    description: string;
+    assignee: string;
+    date: Date;
+}
+
+const PriorityFollowUps: React.FC<{ items: FollowUpItem[], users: User[] }> = ({ items, users }) => {
+    return (
+        <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="follow-ups-heading">
+            <h3 id="follow-ups-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Priority Follow-Ups</h3>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                    <caption className="sr-only">A table of urgent follow-up items including open corrective actions and overdue inspections.</caption>
+                    <thead className="border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                            <th scope="col" className="p-3 font-semibold text-slate-500 dark:text-slate-400">Item</th>
+                            <th scope="col" className="p-3 font-semibold text-slate-500 dark:text-slate-400">Assigned To</th>
+                            <th scope="col" className="p-3 font-semibold text-slate-500 dark:text-slate-400 text-right">Age</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.length > 0 ? (
+                            items.map(item => {
+                                const user = users.find(u => u.name === item.assignee);
+                                return (
+                                <tr key={item.id} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
+                                    <td className="p-3 font-medium text-slate-900 dark:text-white">
+                                        <div className="flex items-center gap-2">
+                                            <ExclamationTriangleIcon className={`w-4 h-4 flex-shrink-0 ${item.type === 'Overdue Inspection' ? 'text-red-500' : 'text-yellow-500'}`} />
+                                            <span>{item.description}</span>
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-slate-600 dark:text-slate-400">
+                                        <div className="flex items-center gap-2">
+                                            {user && <img src={user.avatar} alt={user.name} className="w-6 h-6 rounded-full"/>}
+                                            <span>{item.assignee}</span>
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-slate-500 dark:text-slate-500 text-right">{timeAgo(item.date)}</td>
+                                </tr>
+                            )})
+                        ) : (
+                            <tr>
+                                <td colSpan={3} className="text-center p-8 text-slate-500 dark:text-slate-400">
+                                    No open issues or overdue inspections. Great job!
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    );
+};
+
+interface AuditorStat { name: string; avatar: string; value: string | number; }
+
+const TeamPerformanceSnapshot: React.FC<{ topPerformers: AuditorStat[], mostActive: AuditorStat[] }> = ({ topPerformers, mostActive }) => {
+    const PerfListItem: React.FC<{ stat: AuditorStat }> = ({ stat }) => (
+         <li className="flex items-center gap-3">
+            <img src={stat.avatar} alt={stat.name} className="w-8 h-8 rounded-full bg-slate-200" />
+            <div className="flex-1">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{stat.name}</p>
+            </div>
+            <p className="text-sm font-bold text-primary-600 dark:text-primary-400">{stat.value}</p>
+        </li>
+    );
+    return (
+        <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="team-perf-heading">
+            <h3 id="team-perf-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Team Performance (Selected Period)</h3>
+            <div className="space-y-4">
+                <div>
+                    <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">Top Performers (Avg. Score)</h4>
+                    <ul className="space-y-3">
+                        {topPerformers.length > 0 ? topPerformers.map(p => <PerfListItem key={p.name} stat={p} />) : <p className="text-xs text-center text-slate-500">No data available.</p>}
+                    </ul>
+                </div>
+                 <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                    <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">Most Active Auditors</h4>
+                     <ul className="space-y-3">
+                        {mostActive.length > 0 ? mostActive.map(p => <PerfListItem key={p.name} stat={p} />) : <p className="text-xs text-center text-slate-500">No data available.</p>}
+                    </ul>
+                </div>
+            </div>
+        </section>
+    );
+};
+
 
 interface DashboardProps {
   hotel: Hotel | null;
@@ -90,10 +179,31 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users }) => {
+  const today = new Date();
+  const thirtyDaysAgo = new Date(new Date().setDate(today.getDate() - 30));
+
+  const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
+  
   const hotelData = useMemo(() => {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    
+    const dateFilteredInspections = allInspections.filter(i => {
+      const inspectionDate = new Date(i.date);
+      return inspectionDate >= start && inspectionDate <= end;
+    });
+
+    const dateFilteredCorrectiveActions = allCorrectiveActions.filter(ca => {
+      const issueDate = new Date(ca.issueDate);
+      return issueDate >= start && issueDate <= end;
+    });
+
     const allHotelNames = [...new Set(allInspections.map(i => i.hotelName))];
     const hotelComparisonData = allHotelNames.map(name => {
-        const completed = allInspections.filter(i => i.hotelName === name && i.status === 'Completed');
+        const completed = dateFilteredInspections.filter(i => i.hotelName === name && i.status === 'Completed');
         const avgScore = completed.length > 0 
             ? Math.round(completed.reduce((sum, i) => sum + i.complianceScore, 0) / completed.length) 
             : 0;
@@ -103,13 +213,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users })
     if (!hotel) {
       return {
         hotelComparisonData,
-        avgCompliance: 0, overdueCount: 0, auditsThisMonth: 0, docsAdded: 0,
+        avgCompliance: 0, overdueCount: 0, auditsThisPeriod: 0, docsAdded: 0,
         auditorChartData: [], recentActivities: [], recentInspections: [],
-        openIssues: 0, avgResolutionTime: 0,
+        openIssues: 0, avgResolutionTime: 0, priorityFollowUps: [],
+        topPerformers: [], mostActiveAuditors: [],
       };
     }
-
-    const hotelInspections = allInspections.filter(i => i.hotelName === hotel.name);
+    
+    const hotelInspections = dateFilteredInspections.filter(i => i.hotelName === hotel.name);
     const completedInspections = hotelInspections.filter(i => i.status === 'Completed');
 
     const avgCompliance = completedInspections.length > 0
@@ -117,12 +228,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users })
       : 0;
       
     const overdueCount = hotelInspections.filter(i => i.status === 'Overdue').length;
-
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const auditsThisMonth = completedInspections.filter(i => new Date(i.date) >= thirtyDaysAgo).length;
-
+    const auditsThisPeriod = completedInspections.length;
     const docsAdded = documentStats[hotel.name]?.addedLast30Days || 0;
     
     const auditorPerformance = completedInspections.reduce((acc, inspection) => {
@@ -139,28 +245,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users })
         'Average Score': Math.round(data.scores.reduce((a, b) => a + b, 0) / data.count),
     }));
 
-    const recentActivities = [
-        ...completedInspections.map(i => ({
-            id: i.id,
-            type: 'Inspection',
-            user: i.auditor,
-            details: `Completed an inspection with score ${i.complianceScore}.`,
-            timestamp: new Date(i.date),
-        })),
-        ...auditLogs.slice(0, 10).map(log => ({
-             id: log.id,
-             type: log.action,
-             user: log.user,
-             details: log.details,
-             timestamp: log.timestamp,
-        }))
-    ].sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 5);
-
-    const recentInspections = completedInspections
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const recentActivities = auditLogs
+        .filter(log => hotel.name ? log.details.includes(hotel.name) || !allHotelNames.some(hName => log.details.includes(hName)) : true)
         .slice(0, 5);
 
-    const hotelActions = allCorrectiveActions.filter(a => a.hotelName === hotel.name);
+    const hotelActions = dateFilteredCorrectiveActions.filter(a => a.hotelName === hotel.name);
     const openIssues = hotelActions.filter(a => a.status === 'Open').length;
     
     const closedActions = hotelActions.filter(a => a.status === 'Closed' && a.resolutionDate);
@@ -176,33 +265,60 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users })
         ? Math.round(totalResolutionDays / closedActions.length)
         : 0;
 
+    // Data for new components
+    const openCorrectiveActions = hotelActions.filter(a => a.status === 'Open');
+    const overdueInspections = hotelInspections.filter(i => i.status === 'Overdue');
+    const priorityFollowUps: FollowUpItem[] = [
+        ...openCorrectiveActions.map(a => ({ id: a.id, type: 'Corrective Action' as const, description: a.issue, assignee: a.auditor, date: new Date(a.issueDate) })),
+        ...overdueInspections.map(i => ({ id: i.id, type: 'Overdue Inspection' as const, description: i.name, assignee: i.auditor, date: new Date(i.date) }))
+    ].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const auditorPerformanceStats = users.map(user => {
+        const userInspections = completedInspections.filter(i => i.auditor === user.name && i.hotelName === hotel.name);
+        if (userInspections.length === 0) return { name: user.name, avatar: user.avatar, avgScore: 0, inspectionCount: 0 };
+        const avgScore = Math.round(userInspections.reduce((sum, i) => sum + i.complianceScore, 0) / userInspections.length);
+        return { name: user.name, avatar: user.avatar, avgScore, inspectionCount: userInspections.length };
+    });
+
+    const topPerformers = [...auditorPerformanceStats]
+        .filter(u => u.inspectionCount > 0)
+        .sort((a, b) => b.avgScore - a.avgScore)
+        .slice(0, 3)
+        .map(p => ({ ...p, value: `${p.avgScore}%` }));
+
+    const mostActiveAuditors = [...auditorPerformanceStats]
+        .filter(u => u.inspectionCount > 0)
+        .sort((a, b) => b.inspectionCount - a.inspectionCount)
+        .slice(0, 3)
+        .map(p => ({...p, value: `${p.inspectionCount} insp.`}));
+
+
     return {
-        avgCompliance,
-        overdueCount,
-        auditsThisMonth,
-        docsAdded,
-        auditorChartData,
-        recentActivities,
-        recentInspections,
-        openIssues,
-        avgResolutionTime,
-        hotelComparisonData,
+        avgCompliance, overdueCount, auditsThisPeriod, docsAdded, auditorChartData,
+        recentActivities, openIssues, avgResolutionTime, hotelComparisonData,
+        priorityFollowUps, topPerformers, mostActiveAuditors,
     };
-  }, [hotel, auditLogs]);
+  }, [hotel, auditLogs, users, startDate, endDate]);
   
   const iconProps = { className: "w-8 h-8 text-primary-500" };
-  
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'text-green-500';
-    if (score >= 80) return 'text-yellow-500';
-    return 'text-red-500';
-  };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
-        {hotel ? `Dashboard: ${hotel.name}` : 'Overall Dashboard'}
-      </h1>
+       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
+          {hotel ? `Dashboard: ${hotel.name}` : 'Overall Dashboard'}
+        </h1>
+        <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+                <label htmlFor="start-date" className="text-sm font-medium text-slate-600 dark:text-slate-400">From</label>
+                <input type="date" id="start-date" value={startDate} onChange={e => setStartDate(e.target.value)} className="p-1.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm"/>
+            </div>
+            <div className="flex items-center gap-2">
+                <label htmlFor="end-date" className="text-sm font-medium text-slate-600 dark:text-slate-400">To</label>
+                <input type="date" id="end-date" value={endDate} onChange={e => setEndDate(e.target.value)} className="p-1.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm"/>
+            </div>
+        </div>
+      </div>
       
       {!hotel ? (
         <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="overall-comparison-heading">
@@ -232,15 +348,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users })
                     <XAxis type="number" domain={[0, 100]} tick={{ fill: 'rgb(100 116 139)', fontSize: 12 }} unit="%" />
                     <YAxis type="category" dataKey="name" tick={{ fill: 'rgb(100 116 139)', fontSize: 12, width: 200 }} />
                     <Tooltip contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.9)', borderColor: 'rgba(128,128,128,0.5)' }} />
-                    <Bar dataKey="Compliance Score" fill="#3b82f6" name="Average Score" unit="%" />
+                    <Bar dataKey="Compliance Score" fill="#4f46e5" name="Average Score" unit="%" />
                 </BarChart>
             </ResponsiveContainer>
         </section>
       ) : (
         <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                <StatCard id="avg-compliance-card" title="Avg. Compliance" value={`${hotelData.avgCompliance}%`} change="+1.5% this month" isPositive={true} icon={<TrendingUpIcon {...iconProps} />} />
-                <StatCard id="audits-month-card" title="Audits This Month" value={`${hotelData.auditsThisMonth}`} change="2 completed this week" isPositive={true} icon={<ClipboardCheckIcon {...iconProps} />} />
+                <StatCard id="avg-compliance-card" title="Avg. Compliance" value={`${hotelData.avgCompliance}%`} icon={<TrendingUpIcon {...iconProps} />} />
+                <StatCard id="audits-period-card" title="Audits in Period" value={`${hotelData.auditsThisPeriod}`} icon={<ClipboardCheckIcon {...iconProps} />} />
                 <StatCard id="open-issues-card" title="Open Issues" value={`${hotelData.openIssues}`} isPositive={hotelData.openIssues === 0} icon={<ExclamationTriangleIcon {...iconProps} />} />
                 <StatCard id="resolution-time-card" title="Avg. Resolution Time" value={`${hotelData.avgResolutionTime} Days`} isPositive={hotelData.avgResolutionTime < 3} icon={<AuditLogIcon {...iconProps} />} />
                 <StatCard id="overdue-card" title="Inspections Overdue" value={`${hotelData.overdueCount}`} isPositive={hotelData.overdueCount === 0} icon={<AuditLogIcon {...iconProps} />} />
@@ -251,133 +367,61 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users })
                 
                 {/* Main Content Column */}
                 <div className="lg:col-span-2 space-y-6">
+                    <PriorityFollowUps items={hotelData.priorityFollowUps} users={users} />
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {/* Hotel Comparison Chart */}
                         <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="hotel-comparison-heading">
                             <h3 id="hotel-comparison-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Hotel Compliance Comparison</h3>
-                            <div className="sr-only" aria-hidden="true">
-                              <table>
-                                <caption>Hotel Compliance Comparison Data</caption>
-                                <thead>
-                                  <tr>
-                                    <th scope="col">Hotel Name</th>
-                                    <th scope="col">Average Compliance Score</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {hotelData.hotelComparisonData.map(item => (
-                                    <tr key={item.name}>
-                                      <td>{item.name}</td>
-                                      <td>{item['Compliance Score']}%</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
                             <ResponsiveContainer width="100%" height={300}>
                                 <BarChart data={hotelData.hotelComparisonData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
                                     <XAxis dataKey="name" tick={{ fill: 'rgb(100 116 139)', fontSize: 12 }} />
                                     <YAxis domain={[0, 100]} tick={{ fill: 'rgb(100 116 139)' }} unit="%" />
                                     <Tooltip contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.9)', borderColor: 'rgba(128,128,128,0.5)' }} />
-                                    <Bar dataKey="Compliance Score" fill="#8884d8" name="Average Score" />
+                                    <Bar dataKey="Compliance Score" fill="#6366f1" name="Average Score" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </section>
                          {/* Auditor Performance Chart */}
                         <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="auditor-perf-heading">
                             <h3 id="auditor-perf-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Audit Performance by Auditor</h3>
-                             <div className="sr-only" aria-hidden="true">
-                              <table>
-                                <caption>Auditor Performance Data</caption>
-                                <thead>
-                                  <tr>
-                                    <th scope="col">Auditor Name</th>
-                                    <th scope="col">Average Score</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {hotelData.auditorChartData.map(item => (
-                                    <tr key={item.name}>
-                                      <td>{item.name}</td>
-                                      <td>{item['Average Score']}%</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
                             <ResponsiveContainer width="100%" height={300}>
                                 <BarChart data={hotelData.auditorChartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.2)" />
                                     <XAxis dataKey="name" tick={{ fill: 'rgb(100 116 139)', fontSize: 12 }} />
                                     <YAxis domain={[0, 100]} tick={{ fill: 'rgb(100 116 139)' }} unit="%" />
                                     <Tooltip contentStyle={{ backgroundColor: 'rgba(30, 41, 59, 0.9)', borderColor: 'rgba(128,128,128,0.5)' }} />
-                                    <Bar dataKey="Average Score" fill="#3b82f6" name="Average Score" />
+                                    <Bar dataKey="Average Score" fill="#4f46e5" name="Average Score" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </section>
                     </div>
-
-                    {/* Inspection Records Section */}
-                    <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="inspections-heading">
-                        <h3 id="inspections-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Recent Inspection Records</h3>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <caption className="sr-only">A table of the five most recent inspection records for the selected hotel.</caption>
-                                <thead className="border-b border-slate-200 dark:border-slate-700">
-                                    <tr>
-                                        <th scope="col" className="p-3 font-semibold text-slate-500 dark:text-slate-400">Inspection Name</th>
-                                        <th scope="col" className="p-3 font-semibold text-slate-500 dark:text-slate-400">Date</th>
-                                        <th scope="col" className="p-3 font-semibold text-slate-500 dark:text-slate-400">Auditor</th>
-                                        <th scope="col" className="p-3 font-semibold text-slate-500 dark:text-slate-400 text-right">Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {hotelData.recentInspections.length > 0 ? (
-                                        hotelData.recentInspections.map(insp => (
-                                            <tr key={insp.id} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0">
-                                                <td className="p-3 font-medium text-slate-900 dark:text-white">{insp.name}</td>
-                                                <td className="p-3 text-slate-600 dark:text-slate-400">{insp.date}</td>
-                                                <td className="p-3 text-slate-600 dark:text-slate-400">{insp.auditor}</td>
-                                                <td className={`p-3 font-bold text-right ${getScoreColor(insp.complianceScore)}`}>
-                                                    {insp.complianceScore}%
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={4} className="text-center p-8 text-slate-500 dark:text-slate-400">
-                                                No completed inspections found for this hotel.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
                 </div>
 
                 {/* Sidebar Column */}
-                <section className="lg:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="activity-heading">
-                    <h3 id="activity-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Recent Activity</h3>
-                    <ul className="space-y-4">
-                        {hotelData.recentActivities.map(activity => {
-                            const user = users.find(u => u.name === activity.user);
-                            return (
-                            <li key={activity.id} className="flex items-start gap-3">
-                                <img src={user?.avatar} alt={user?.name} className="w-10 h-10 rounded-full bg-slate-200 mt-1" />
-                                <div className="flex-1">
-                                    <p className="text-sm text-slate-800 dark:text-slate-200">
-                                        <span className="font-semibold">{activity.user}</span> {activity.type === 'Inspection' ? 'completed an inspection.' : activity.type === 'User Logged In' ? 'logged in.' : 'performed an action.'}
-                                    </p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 italic">"{activity.details}"</p>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{timeAgo(activity.timestamp)}</p>
-                                </div>
-                            </li>
-                            )
-                        })}
-                    </ul>
-                </section>
+                <div className="lg:col-span-1 space-y-6">
+                    <TeamPerformanceSnapshot topPerformers={hotelData.topPerformers} mostActive={hotelData.mostActiveAuditors} />
+                    <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="activity-heading">
+                        <h3 id="activity-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Recent Activity</h3>
+                        <ul className="space-y-4">
+                            {hotelData.recentActivities.map(activity => {
+                                const user = users.find(u => u.name === activity.user);
+                                return (
+                                <li key={activity.id} className="flex items-start gap-3">
+                                    <img src={user?.avatar} alt={user?.name} className="w-10 h-10 rounded-full bg-slate-200 mt-1" />
+                                    <div className="flex-1">
+                                        <p className="text-sm text-slate-800 dark:text-slate-200">
+                                            <span className="font-semibold">{activity.user}</span> {activity.action.toLowerCase().replace(/_/g, ' ')}
+                                        </p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 italic">"{activity.details}"</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{timeAgo(activity.timestamp)}</p>
+                                    </div>
+                                </li>
+                                )
+                            })}
+                        </ul>
+                    </section>
+                </div>
             </div>
         </>
       )}

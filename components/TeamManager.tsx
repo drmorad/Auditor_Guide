@@ -45,6 +45,7 @@ export const TeamManager: React.FC<TeamManagerProps> = ({ currentUser, users, se
                   <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full flex-shrink-0" />
                   <div className="flex-grow">
                     <p className="font-semibold text-slate-900 dark:text-white">{member.name}</p>
+                    {member.jobTitle && <p className="text-sm text-slate-600 dark:text-slate-300">{member.jobTitle}</p>}
                     <p className="text-sm text-slate-500 dark:text-slate-400">{member.email}</p>
                   </div>
                 </button>

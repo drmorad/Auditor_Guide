@@ -11,6 +11,7 @@ interface HeaderProps {
   onSelectHotel: (hotelId: string | null) => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onToggleSidebar: () => void;
 }
 
 const VIEW_TITLES: Record<View, string> = {
@@ -28,7 +29,7 @@ const VIEW_TITLES: Record<View, string> = {
   [View.Scheduler]: 'Scheduler',
 };
 
-export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHotelId, onSelectHotel, theme, onToggleTheme }) => {
+export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHotelId, onSelectHotel, theme, onToggleTheme, onToggleSidebar }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -47,7 +48,18 @@ export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHote
 
   return (
     <header className="bg-white dark:bg-slate-800 p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{view ? VIEW_TITLES[view] : 'Welcome'}</h1>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onToggleSidebar}
+          className="p-1 text-slate-500 hover:text-primary-500 md:hidden"
+          aria-label="Toggle sidebar"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{view ? VIEW_TITLES[view] : 'Welcome'}</h1>
+      </div>
 
       <div className="flex items-center gap-4">
         {view === View.Dashboard && (

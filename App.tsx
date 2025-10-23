@@ -18,8 +18,8 @@ import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { ChatAssistant } from './components/ChatAssistant';
 import { Header } from './components/Header';
 import { getChatResponse } from './services/geminiService';
-import { View, User, Document, AuditLogEntry, Sop, SopTemplate, Hotel, InspectionRecord, ChatMessage, InspectionTemplate as InspectionTemplateType } from './types';
-import { MOCK_USERS, MOCK_DOCUMENTS, MOCK_HOTELS, MOCK_INSPECTION_RECORDS, MOCK_INSPECTION_TEMPLATES } from './mockData';
+import { View, User, Document, AuditLogEntry, Sop, SopTemplate, Hotel, InspectionRecord, ChatMessage, InspectionTemplate as InspectionTemplateType, Task } from './types';
+import { MOCK_USERS, MOCK_DOCUMENTS, MOCK_HOTELS, MOCK_INSPECTION_RECORDS, MOCK_INSPECTION_TEMPLATES, MOCK_TASKS } from './mockData';
 
 const APP_STORAGE_PREFIX = 'auditorsguide_';
 
@@ -53,6 +53,7 @@ const App: React.FC = () => {
   const [hotels, setHotels] = useState<Hotel[]>(() => getStoredItem('hotels', MOCK_HOTELS));
   const [inspectionRecords, setInspectionRecords] = useState<InspectionRecord[]>(() => getStoredItem('inspectionRecords', MOCK_INSPECTION_RECORDS));
   const [inspectionTemplates, setInspectionTemplates] = useState<InspectionTemplateType[]>(() => getStoredItem('inspectionTemplates', MOCK_INSPECTION_TEMPLATES));
+  const [tasks, setTasks] = useState<Task[]>(() => getStoredItem('tasks', MOCK_TASKS));
   const [sopInitialData, setSopInitialData] = useState<any>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -62,6 +63,7 @@ const App: React.FC = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => getStoredItem('theme', 'light'));
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // --- Data Persistence Effects ---
   useEffect(() => { setStoredItem('users', users); }, [users]);
@@ -70,6 +72,7 @@ const App: React.FC = () => {
   useEffect(() => { setStoredItem('hotels', hotels); }, [hotels]);
   useEffect(() => { setStoredItem('inspectionRecords', inspectionRecords); }, [inspectionRecords]);
   useEffect(() => { setStoredItem('inspectionTemplates', inspectionTemplates); }, [inspectionTemplates]);
+  useEffect(() => { setStoredItem('tasks', tasks); }, [tasks]);
   useEffect(() => { setStoredItem('theme', theme); }, [theme]);
 
   const addAuditLog = useCallback((action: string, details: string) => {
@@ -192,21 +195,128 @@ const App: React.FC = () => {
     const newHotel: Hotel = {
       id: `hotel-${Date.now()}`,
       name,
+      areas: [],
     };
     setHotels(prev => [...prev, newHotel]);
     addAuditLog('Hotel Added', `Added new hotel: ${name}.`);
+  };
+
+  const handleUpdateHotel = (updatedHotel: Hotel) => {
+    setHotels(prevHotels => prevHotels.map(h => h.id === updatedHotel.id ? updatedHotel : h));
+    addAuditLog('Hotel Details Updated', `Updated areas/outlets for ${updatedHotel.name}.`);
+  };
+  
+  const handleDeleteHotel = (hotelId: string) => {
+    const hotelToDelete = hotels.find(h => h.id === hotelId);
+    if (hotelToDelete) {
+      setHotels(prev => prev.filter(h => h.id !== hotelId));
+      // Also remove this hotelId from any users assigned to it
+      setUsers(prevUsers => prevUsers.map(user => ({
+          ...user,
+          hotelIds: user.hotelIds?.filter(id => id !== hotelId) || []
+      })));
+      addAuditLog('Hotel Removed', `Removed hotel: ${hotelToDelete.name}.`);
+    }
   };
 
   const handleCreateInspectionTemplate = (template: InspectionTemplateType) => {
     setInspectionTemplates(prev => [...prev, template]);
     addAuditLog('Inspection Template Created', `Created new template: "${template.name}".`);
   };
+  
+  const handleAddTask = (
+    taskData: Omit<Task, 'id' | 'recurringInstanceId'>, 
+    recurring?: { frequency: 'daily' | 'weekly' | 'monthly'; endDate: string; }
+  ) => {
+    if (!recurring) {
+      const newTask: Task = {
+        id: `task-${Date.now()}`,
+        ...taskData
+      };
+      setTasks(prev => [...prev, newTask]);
+      addAuditLog('Task Created', `Created new task: "${newTask.name}"`);
+    } else {
+      const newTasks: Task[] = [];
+      const recurringInstanceId = `recur-${Date.now()}`;
+      // Calculate duration in days. getTime() is in UTC.
+      const taskDurationDays = Math.max(0, (new Date(taskData.end).getTime() - new Date(taskData.start).getTime()) / (1000 * 3600 * 24));
+
+      // Use 'T12:00:00Z' to avoid timezone issues where new Date('YYYY-MM-DD') might become the previous day.
+      let currentDate = new Date(taskData.start + 'T12:00:00Z');
+      const finalEndDate = new Date(recurring.endDate + 'T12:00:00Z');
+
+      while (currentDate <= finalEndDate) {
+        const taskEndDate = new Date(currentDate);
+        taskEndDate.setDate(currentDate.getDate() + taskDurationDays);
+
+        const newTask: Task = {
+          ...taskData,
+          id: `task-${Date.now()}-${newTasks.length}`,
+          recurringInstanceId,
+          name: `${taskData.name} (${currentDate.toISOString().split('T')[0]})`,
+          start: currentDate.toISOString().split('T')[0],
+          end: taskEndDate.toISOString().split('T')[0],
+          dependencies: [], // Recurring tasks shouldn't have dependencies for simplicity
+        };
+        newTasks.push(newTask);
+
+        switch (recurring.frequency) {
+          case 'daily':
+            currentDate.setDate(currentDate.getDate() + 1);
+            break;
+          case 'weekly':
+            currentDate.setDate(currentDate.getDate() + 7);
+            break;
+          case 'monthly':
+            // This is a simplification; for full accuracy, libraries like date-fns are better.
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            break;
+        }
+      }
+      setTasks(prev => [...prev, ...newTasks]);
+      addAuditLog('Recurring Task Created', `Created ${newTasks.length} instances of recurring task: "${taskData.name}"`);
+    }
+  };
 
   const handleSendMessage = async (message: string) => {
       setChatHistory(prev => [...prev, { sender: 'user', text: message }]);
       setIsChatLoading(true);
       try {
-          const context = documents.map(d => `Document: ${d.name}\nContent: ${d.content || ''}`).join('\n\n---\n\n');
+          // 1. Find relevant documents based on keywords
+          const stopWords = ['a', 'an', 'the', 'is', 'are', 'was', 'were', 'what', 'where', 'how', 'who', 'why', 'tell', 'me', 'about', 'of', 'in', 'on', 'for', 'with', 'it', 'you', 'i', 'can', 'show', 'give'];
+          const keywords = message
+              .toLowerCase()
+              .replace(/[^\w\s]/g, '') // remove punctuation
+              .split(/\s+/) // split by whitespace
+              .filter(word => word && !stopWords.includes(word));
+
+          const relevantDocuments = documents
+              .map(doc => {
+                  const docText = `${doc.name} ${doc.tags.join(' ')} ${doc.content || ''}`.toLowerCase();
+                  let score = 0;
+                  keywords.forEach(keyword => {
+                      if (docText.includes(keyword)) {
+                          score++;
+                      }
+                  });
+                  return { doc, score };
+              })
+              .filter(item => item.score > 0)
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 3) // Limit to top 3 relevant documents
+              .map(item => item.doc);
+
+          // 2. Construct context and log referenced documents
+          let context: string;
+          if (relevantDocuments.length > 0) {
+              const referencedDocNames = relevantDocuments.map(d => d.name);
+              addAuditLog('AI Assistant Referenced Documents', `AI searched for context in: ${referencedDocNames.join(', ')}`);
+              context = "Based on the user's question, here is some context from potentially relevant documents:\n\n" + 
+                        relevantDocuments.map(d => `--- Document: ${d.name} ---\n${d.content || ''}`).join('\n\n');
+          } else {
+              context = "No relevant documents were found in the system regarding the user's query.";
+          }
+
           const response = await getChatResponse(message, context);
           setChatHistory(prev => [...prev, { sender: 'ai', text: response }]);
       } catch (error) {
@@ -246,13 +356,13 @@ const App: React.FC = () => {
       case View.SopTemplates:
         return <SopTemplates setView={setView} onSelectTemplate={handleSelectSopTemplate} onStartFromScratch={() => { setSopInitialData(null); setView(View.SopGenerator); }} />;
       case View.AdminPanel:
-        return <AdminPanel users={users} setUsers={setUsers} onSendInvite={handleInviteUser} addAuditLog={addAuditLog} currentUser={currentUser} hotels={hotels} onAddHotel={handleAddHotel} inspectionTemplates={inspectionTemplates} onCreateTemplate={handleCreateInspectionTemplate} />;
+        return <AdminPanel users={users} setUsers={setUsers} onSendInvite={handleInviteUser} addAuditLog={addAuditLog} currentUser={currentUser} hotels={hotels} onAddHotel={handleAddHotel} onDeleteHotel={handleDeleteHotel} onUpdateHotel={handleUpdateHotel} inspectionTemplates={inspectionTemplates} onCreateTemplate={handleCreateInspectionTemplate} />;
       case View.UserProfile:
         return profileUser ? <UserProfile user={profileUser} allHotels={hotels} auditLogs={auditLogs} onBack={() => setView(View.Team)} /> : null;
       case View.Reporting:
         return <Reporting records={inspectionRecords} hotels={hotels} />;
        case View.Scheduler:
-        return <Scheduler/>;
+        return <Scheduler tasks={tasks} users={users} onAddTask={handleAddTask} />;
       default:
         return <Dashboard hotel={selectedHotel} auditLogs={auditLogs} users={users} />;
     }
@@ -264,8 +374,25 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-      {currentUser && <Sidebar view={view} setView={setView} onLogout={handleLogout} user={currentUser} />}
+      {currentUser && (
+        <Sidebar
+          view={view}
+          setView={setView}
+          onLogout={handleLogout}
+          user={currentUser}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
+      )}
       
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {currentUser ? (
         <div className="flex-1 flex flex-col overflow-hidden">
            <Header
@@ -276,6 +403,7 @@ const App: React.FC = () => {
             onSelectHotel={setSelectedHotelId}
             theme={theme}
             onToggleTheme={handleToggleTheme}
+            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
           <main className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900">
             {renderView()}

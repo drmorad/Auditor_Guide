@@ -1,9 +1,11 @@
+
 import React, { useState, useMemo } from 'react';
 import { User, Hotel, InspectionTemplate } from '../types';
-import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon, UserPlusIcon, ClipboardDocumentListIcon } from './icons';
+import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon, UserPlusIcon, ClipboardDocumentListIcon, TrashIcon } from './icons';
 import { ConfirmRoleChangeModal } from './ConfirmRoleChangeModal';
 import { InviteUserModal } from './InviteUserModal';
 import { CreateTemplateModal } from './CreateTemplateModal';
+import { ManageAreasModal } from './ManageAreasModal';
 
 const RoleBadge: React.FC<{ role: User['role'] }> = ({ role }) => {
   const colors = {
@@ -22,6 +24,8 @@ interface AdminPanelProps {
   currentUser: User;
   hotels: Hotel[];
   onAddHotel: (name: string) => void;
+  onDeleteHotel: (hotelId: string) => void;
+  onUpdateHotel: (updatedHotel: Hotel) => void;
   inspectionTemplates: InspectionTemplate[];
   onCreateTemplate: (template: InspectionTemplate) => void;
 }
@@ -103,14 +107,16 @@ const AssignHotelsModal: React.FC<{
 };
 
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel, inspectionTemplates, onCreateTemplate }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel, onDeleteHotel, onUpdateHotel, inspectionTemplates, onCreateTemplate }) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newHotelName, setNewHotelName] = useState('');
-  const [activeTab, setActiveTab] = useState<AdminTab>('users');
+  const [hotelSuccessMessage, setHotelSuccessMessage] = useState('');
+  const [activeTab, setActiveTab] = useState<AdminTab>('hotels');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [assigningHotelsToUser, setAssigningHotelsToUser] = useState<User | null>(null);
   const [roleChangeConfirmation, setRoleChangeConfirmation] = useState<{ user: User; newRole: User['role'] } | null>(null);
+  const [managingAreasForHotel, setManagingAreasForHotel] = useState<Hotel | null>(null);
 
   const pendingUsers = useMemo(() => users.filter(u => u.status === 'Pending'), [users]);
   const activeUsers = useMemo(() => users.filter(u => u.status === 'Active'), [users]);
@@ -140,7 +146,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
     e.preventDefault();
     if (newHotelName.trim()) {
       onAddHotel(newHotelName);
+      setHotelSuccessMessage(`Successfully added hotel: "${newHotelName.trim()}"`);
       setNewHotelName('');
+      setTimeout(() => setHotelSuccessMessage(''), 3000);
+    }
+  };
+  
+  const handleDeleteHotelClick = (hotel: Hotel) => {
+    const confirmationMessage = `Are you sure you want to delete "${hotel.name}"? This will also remove it from any users it is assigned to. This action cannot be undone.`;
+    if (window.confirm(confirmationMessage)) {
+      onDeleteHotel(hotel.id);
     }
   };
   
@@ -239,7 +254,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
                       {currentUser.id !== member.id && (
                           <div className="relative">
                           <button onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)} className="text-slate-500 hover:text-primary-500 transition-colors">
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
                               </svg>
                           </button>
@@ -279,6 +294,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
      <div className="space-y-6 animate-fade-in">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-3">Manage Hotels</h2>
+            {hotelSuccessMessage && (
+                <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/50 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 rounded-md text-sm">
+                    {hotelSuccessMessage}
+                </div>
+            )}
             <form onSubmit={handleAddHotelSubmit} className="mt-4 flex flex-col sm:flex-row gap-2">
                 <input 
                     type="text" 
@@ -290,16 +310,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
                 />
                 <button type="submit" className="bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md flex-shrink-0">Add Hotel</button>
             </form>
-            <div className="mt-4 space-y-2">
+            <div className="mt-6 space-y-2">
                 <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">Existing Hotels:</h3>
                 {hotels.length > 0 ? (
-                    <ul className="list-disc list-inside text-sm text-slate-700 dark:text-slate-300">
+                    <ul className="divide-y divide-slate-200 dark:divide-slate-700 -mx-6">
                     {hotels.map(hotel => (
-                        <li key={hotel.id}>{hotel.name}</li>
+                        <li key={hotel.id} className="px-6 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 group">
+                          <div>
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{hotel.name}</span>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{hotel.areas?.length || 0} areas defined</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setManagingAreasForHotel(hotel)} className="text-sm font-semibold text-primary-600 dark:text-primary-400 hover:underline">Manage Areas</button>
+                            <button 
+                              onClick={() => handleDeleteHotelClick(hotel)}
+                              className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                              aria-label={`Delete ${hotel.name}`}
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </li>
                     ))}
                     </ul>
                 ) : (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No hotels added yet.</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">No hotels added yet.</p>
                 )}
             </div>
         </div>
@@ -384,6 +419,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
                 newRole={roleChangeConfirmation.newRole}
                 onClose={() => setRoleChangeConfirmation(null)}
                 onConfirm={handleConfirmRoleChange}
+            />
+        )}
+
+        {managingAreasForHotel && (
+            <ManageAreasModal 
+                hotel={managingAreasForHotel}
+                onClose={() => setManagingAreasForHotel(null)}
+                onSave={onUpdateHotel}
             />
         )}
     </div>

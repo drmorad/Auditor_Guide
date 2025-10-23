@@ -1,14 +1,14 @@
-
 import React from 'react';
 import { View, User } from '../types';
-// FIX: Imported `TrendingUpIcon` to resolve 'Cannot find name' error.
-import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon } from './icons';
+import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon, MagicIcon } from './icons';
 
 interface SidebarProps {
   view: View | null;
   setView: (view: View) => void;
   onLogout: () => void;
   user: User;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const NavItem: React.FC<{
@@ -32,10 +32,11 @@ const NavItem: React.FC<{
   </li>
 );
 
-export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user, isOpen, onClose }) => {
   const navItems = [
     { id: View.Dashboard, label: 'Dashboard', icon: <DashboardIcon className="w-6 h-6" /> },
     { id: View.Documents, label: 'Documents', icon: <DocumentIcon className="w-6 h-6" /> },
+    { id: View.SopTemplates, label: 'SOP Templates', icon: <MagicIcon className="w-6 h-6" /> }, // Corrected link
     { id: View.Inspections, label: 'Inspections', icon: <ClipboardCheckIcon className="w-6 h-6" /> },
     { id: View.Team, label: 'Team Access', icon: <TeamIcon className="w-6 h-6" /> },
     { id: View.Reporting, label: 'Reporting', icon: <TrendingUpIcon className="w-6 h-6" /> },
@@ -48,7 +49,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user 
   }
 
   return (
-    <aside className="w-64 bg-slate-800 text-white flex flex-col flex-shrink-0">
+    <aside
+      className={`w-64 bg-slate-800 text-white flex flex-col flex-shrink-0 fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
       <div className="h-20 flex items-center justify-center border-b border-slate-700">
         <h1 className="text-2xl font-bold">AuditorsGuide</h1>
       </div>
@@ -60,7 +65,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user 
               icon={item.icon}
               label={item.label}
               isActive={view === item.id}
-              onClick={() => setView(item.id)}
+              onClick={() => {
+                setView(item.id);
+                onClose();
+              }}
             />
           ))}
         </ul>
@@ -78,11 +86,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user 
                 icon={<SettingsIcon className="w-6 h-6" />}
                 label="Settings"
                 isActive={view === View.Settings}
-                onClick={() => setView(View.Settings)}
+                onClick={() => {
+                  setView(View.Settings);
+                  onClose();
+                }}
             />
         </ul>
         <button
-          onClick={onLogout}
+          onClick={() => {
+            onLogout();
+            onClose();
+          }}
           className="w-full mt-4 py-2 px-4 rounded-lg bg-red-500 hover:bg-red-600 transition-colors text-white font-semibold"
         >
           Log Out

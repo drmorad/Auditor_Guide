@@ -1,4 +1,3 @@
-
 export enum View {
   Dashboard = 'DASHBOARD',
   Documents = 'DOCUMENTS',
@@ -26,9 +25,16 @@ export interface Sop {
   steps: SopStep[];
 }
 
+export interface Area {
+  id: string;
+  name: string;
+  type: 'Outlet' | 'Bar' | 'Pool' | 'Public Area' | 'Back of House';
+}
+
 export interface Hotel {
   id: string;
   name: string;
+  areas?: Area[];
 }
 
 export interface AuditLogEntry {
@@ -53,6 +59,7 @@ export interface User {
   verificationCode?: string;
   organizationId: string;
   hotelIds?: string[];
+  jobTitle?: string;
 }
 
 export interface Note {
@@ -100,6 +107,8 @@ export interface InspectionRecord {
     status: 'In Progress' | 'Completed' | 'Overdue';
     results: InspectionResult[];
     complianceScore: number;
+    areaId?: string;
+    areaName?: string;
 }
 
 export interface InspectionQuestion {
@@ -124,4 +133,15 @@ export interface SopTemplate {
   description: string;
   details: string;
   category: SopTemplateCategory;
+}
+
+export interface Task {
+  id: string;
+  name: string;
+  start: string; // ISO date string 'YYYY-MM-DD'
+  end: string;   // ISO date string 'YYYY-MM-DD'
+  dependencies: string[]; // Array of task IDs it depends on
+  assigneeId: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  recurringInstanceId?: string; // To group recurring tasks
 }

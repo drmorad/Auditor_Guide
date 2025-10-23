@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { SopTemplate, View, SopTemplateCategory } from '../types';
 import { DocumentIcon, MagicIcon } from './icons';
@@ -93,8 +92,8 @@ export const SopTemplates: React.FC<SopTemplatesProps> = ({ onSelectTemplate, on
     <div className="animate-fade-in">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div className="flex items-center gap-4">
-                <button onClick={() => setView(View.Documents)} className="text-slate-500 hover:text-primary-500 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <button onClick={() => setView(View.Documents)} className="text-slate-500 hover:text-primary-500 transition-colors" aria-label="Back to Document Hub">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                     </svg>
                 </button>
@@ -106,9 +105,9 @@ export const SopTemplates: React.FC<SopTemplatesProps> = ({ onSelectTemplate, on
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">
-            <button onClick={() => setSelectedCategory('All')} className={getButtonClass('All')}>All Templates</button>
+            <button onClick={() => setSelectedCategory('All')} className={getButtonClass('All')} aria-pressed={selectedCategory === 'All'}>All Templates</button>
             {categories.map((category) => (
-            <button key={category} onClick={() => setSelectedCategory(category)} className={getButtonClass(category)}>
+            <button key={category} onClick={() => setSelectedCategory(category)} className={getButtonClass(category)} aria-pressed={selectedCategory === category}>
                 {category}
             </button>
             ))}

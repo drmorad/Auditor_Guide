@@ -49,7 +49,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allHotels, audit
     <div className="space-y-6 max-w-4xl mx-auto animate-fade-in">
         <div className="flex items-center gap-4">
             <button onClick={onBack} className="text-slate-500 hover:text-primary-500 transition-colors p-1 rounded-full -ml-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                 </svg>
             </button>
@@ -61,10 +61,11 @@ export const UserProfile: React.FC<UserProfileProps> = ({ user, allHotels, audit
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                 <img src={user.avatar} alt={user.name} className="w-24 h-24 rounded-full border-4 border-slate-200 dark:border-slate-700 shadow-md" />
                 <div className="flex-grow">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{user.name}</h2>
                        <RoleBadge role={user.role} />
                     </div>
+                    {user.jobTitle && <p className="text-lg font-medium text-primary-600 dark:text-primary-400 mt-1">{user.jobTitle}</p>}
                     <p className="text-md text-slate-500 dark:text-slate-400 mt-1">{user.email}</p>
                 </div>
             </div>

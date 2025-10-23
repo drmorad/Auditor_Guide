@@ -27,6 +27,8 @@ interface DocumentManagerProps {
 
 export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments, onSopCreated }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<'All' | Document['category']>('All');
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [previewingDocument, setPreviewingDocument] = useState<Document | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState<{ file: File; name: string; content: string; type: string; } | null>(null);
@@ -35,11 +37,34 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
   const [isConnecting, setIsConnecting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    documents.forEach(doc => {
+      doc.tags.forEach(tag => tags.add(tag));
+    });
+    return Array.from(tags).sort();
+  }, [documents]);
+
   const filteredDocuments = useMemo(() => {
-    return documents.filter(doc =>
-        doc.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [documents, searchQuery]);
+    return documents.filter(doc => {
+      const searchMatch = doc.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const categoryMatch = selectedCategory === 'All' || doc.category === selectedCategory;
+      const tagsMatch = selectedTags.size === 0 || Array.from(selectedTags).every(tag => doc.tags.includes(tag));
+      return searchMatch && categoryMatch && tagsMatch;
+    });
+  }, [documents, searchQuery, selectedCategory, selectedTags]);
+
+  const handleTagToggle = (tag: string) => {
+    setSelectedTags(prevTags => {
+      const newTags = new Set(prevTags);
+      if (newTags.has(tag)) {
+        newTags.delete(tag);
+      } else {
+        newTags.add(tag);
+      }
+      return newTags;
+    });
+  };
 
   const handlePreviewDocument = (doc: Document) => {
     setPreviewingDocument(doc);
@@ -267,6 +292,39 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
               className="block w-full rounded-lg border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-700 py-2 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:border-primary-500 focus:ring-primary-500"
             />
           </div>
+        </div>
+
+        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg space-y-4">
+          <div>
+              <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">Filter by Category</h3>
+              <div className="flex flex-wrap gap-2">
+                  {(['All', 'SOP', 'HACCP', 'Audit', 'Team File'] as const).map(cat => (
+                      <button 
+                          key={cat}
+                          onClick={() => setSelectedCategory(cat)}
+                          className={`px-3 py-1 text-sm font-semibold rounded-full transition-colors ${selectedCategory === cat ? 'bg-primary-600 text-white' : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                      >
+                          {cat}
+                      </button>
+                  ))}
+              </div>
+          </div>
+          {allTags.length > 0 && (
+              <div>
+                  <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">Filter by Tags</h3>
+                  <div className="flex flex-wrap gap-2">
+                      {allTags.map(tag => (
+                          <button
+                              key={tag}
+                              onClick={() => handleTagToggle(tag)}
+                              className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors border ${selectedTags.has(tag) ? 'bg-primary-600 text-white border-primary-600' : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 border-slate-300 dark:border-slate-600'}`}
+                          >
+                              {tag}
+                          </button>
+                      ))}
+                  </div>
+              </div>
+          )}
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md overflow-x-auto">

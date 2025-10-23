@@ -77,7 +77,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
             <div className="flex justify-between items-center mb-2">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{inspection.templateName}</h1>
-                    <p className="text-slate-500 dark:text-slate-400">{inspection.hotelName} - {inspection.date}</p>
+                    <p className="text-slate-500 dark:text-slate-400">{inspection.hotelName}{inspection.areaName ? ` - ${inspection.areaName}` : ''} - {inspection.date}</p>
                 </div>
                 <button onClick={onExit} className="text-sm font-semibold text-slate-600 hover:text-primary-600">Exit Form</button>
             </div>
