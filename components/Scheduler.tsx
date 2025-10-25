@@ -182,10 +182,21 @@ const formatDate = (date: Date): string => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const getStatusStyles = (status: Task['status']) => {
-    switch(status) {
+const isTaskOverdue = (task: Task): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const taskEnd = new Date(task.end);
+    taskEnd.setHours(0, 0, 0, 0);
+    return taskEnd < today && task.status !== 'completed';
+};
+
+const getStatusStyles = (task: Task) => { // Now takes the full task object
+    if (isTaskOverdue(task)) {
+        return 'bg-red-500 border-red-700 dark:bg-red-600 dark:border-red-800';
+    }
+    switch(task.status) {
         case 'completed': return 'bg-emerald-500 border-emerald-700 dark:bg-emerald-600 dark:border-emerald-800';
-        case 'in-progress': return 'bg-sky-500 border-sky-700 dark:bg-sky-600 dark:border-sky-800';
+        case 'in-progress': return 'bg-sky-500 border-sky-700 dark:bg-sky-600 dark:border-sky-800 relative after:absolute after:inset-0 after:bg-stripes after:bg-[length:16px_16px] after:opacity-20';
         case 'pending': return 'bg-slate-400 border-slate-600 dark:bg-slate-500 dark:border-slate-700';
     }
 };
@@ -402,7 +413,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                                 >
                                     <div
                                         ref={el => { taskRefs.current[task.id] = el; }}
-                                        className={`group relative w-full h-10 rounded-lg flex items-center px-3 text-white text-sm font-bold border-b-2 shadow-sm truncate cursor-pointer transition-transform duration-200 hover:scale-[1.02] hover:shadow-lg ${getStatusStyles(task.status)}`}
+                                        className={`group relative w-full h-10 rounded-lg flex items-center px-3 text-white text-sm font-bold border-b-2 shadow-sm truncate cursor-pointer transition-transform duration-200 hover:scale-[1.02] hover:shadow-lg ${getStatusStyles(task)}`}
                                         data-task-id={task.id}
                                     >
                                         <span className="truncate">{task.name}</span>
