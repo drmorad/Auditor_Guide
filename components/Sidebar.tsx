@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, User } from '../types';
-import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon, MagicIcon } from './icons';
+import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon, MagicIcon, CalendarCheckIcon } from './icons';
 
 interface SidebarProps {
   view: View | null;
@@ -41,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user,
     { id: View.Team, label: 'Team Access', icon: <TeamIcon className="w-6 h-6" /> },
     { id: View.Reporting, label: 'Reporting', icon: <TrendingUpIcon className="w-6 h-6" /> },
     { id: View.Scheduler, label: 'Scheduler', icon: <AuditLogIcon className="w-6 h-6" /> },
+    { id: View.Planner, label: 'Inspection Planner', icon: <CalendarCheckIcon className="w-6 h-6" /> },
     { id: View.AuditLog, label: 'Audit Log', icon: <AuditLogIcon className="w-6 h-6" /> },
   ];
   

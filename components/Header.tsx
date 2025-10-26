@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Hotel, View } from '../types';
 import { SunIcon, MoonIcon, ChevronDownIcon, CheckIcon, BuildingOfficeIcon } from './icons';
@@ -27,6 +26,7 @@ const VIEW_TITLES: Record<View, string> = {
   [View.UserProfile]: 'User Profile',
   [View.Reporting]: 'Reporting',
   [View.Scheduler]: 'Scheduler',
+  [View.Planner]: 'Inspection Planner',
 };
 
 export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHotelId, onSelectHotel, theme, onToggleTheme, onToggleSidebar }) => {
@@ -54,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHote
           className="p-1 text-slate-500 hover:text-primary-500 md:hidden"
           aria-label="Toggle sidebar"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
@@ -66,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHote
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 text-sm font-semibold bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+              className="flex items-center gap-2 text-sm font-semibold bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg hover:bg-slate-200 dark:hover-bg-slate-600 transition-colors"
             >
               <BuildingOfficeIcon className="w-5 h-5 text-slate-500 dark:text-slate-400"/>
               <span className="truncate max-w-[200px]">{displayLabel}</span>

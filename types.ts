@@ -11,6 +11,7 @@ export enum View {
   UserProfile = 'USER_PROFILE',
   Reporting = 'REPORTING',
   Scheduler = 'SCHEDULER',
+  Planner = 'PLANNER',
 }
 
 export interface SopStep {
@@ -144,4 +145,21 @@ export interface Task {
   assigneeId: string;
   status: 'pending' | 'in-progress' | 'completed';
   recurringInstanceId?: string; // To group recurring tasks
+  parentId?: string; // ID of the parent task
+}
+
+export interface PlannedInspection {
+  areaName: string;
+  templateName: string;
+  assignedManager: string;
+}
+
+export interface WeeklyPlan {
+    monday: PlannedInspection[];
+    tuesday: PlannedInspection[];
+    wednesday: PlannedInspection[];
+    thursday: PlannedInspection[];
+    friday: PlannedInspection[];
+    saturday: PlannedInspection[];
+    sunday: PlannedInspection[];
 }

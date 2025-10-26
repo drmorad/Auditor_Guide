@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Sop, UserRole } from '../types';
+import { Sop, UserRole, WeeklyPlan, Hotel, InspectionTemplate, User } from '../types';
 
 const API_KEY = process.env.API_KEY;
 
@@ -240,4 +240,81 @@ export const suggestUserRole = async (jobTitle: string): Promise<{ role: UserRol
     console.error("Error suggesting user role:", error);
     throw new Error("Failed to get role suggestion from the AI assistant.");
   }
+};
+
+const inspectionItemSchema = {
+    type: Type.OBJECT,
+    properties: {
+        areaName: { type: Type.STRING, description: "The name of the hotel area or outlet for the inspection." },
+        templateName: { type: Type.STRING, description: "The name of the inspection template to be used." },
+        assignedManager: { type: Type.STRING, description: "The name of the manager assigned to this inspection." }
+    },
+    required: ["areaName", "templateName", "assignedManager"]
+};
+
+const weeklyPlanSchema = {
+    type: Type.OBJECT,
+    properties: {
+        monday: { type: Type.ARRAY, description: "Inspections for Monday.", items: inspectionItemSchema },
+        tuesday: { type: Type.ARRAY, description: "Inspections for Tuesday.", items: inspectionItemSchema },
+        wednesday: { type: Type.ARRAY, description: "Inspections for Wednesday.", items: inspectionItemSchema },
+        thursday: { type: Type.ARRAY, description: "Inspections for Thursday.", items: inspectionItemSchema },
+        friday: { type: Type.ARRAY, description: "Inspections for Friday.", items: inspectionItemSchema },
+        saturday: { type: Type.ARRAY, description: "Inspections for Saturday.", items: inspectionItemSchema },
+        sunday: { type: Type.ARRAY, description: "Inspections for Sunday.", items: inspectionItemSchema }
+    },
+};
+
+export const generateWeeklyInspectionPlan = async (hotel: Hotel, templates: InspectionTemplate[], managers: User[]): Promise<WeeklyPlan> => {
+    try {
+        const hotelInfo = `Hotel Name: ${hotel.name}\nAreas: ${hotel.areas?.map(a => `${a.name} (${a.type})`).join(', ') || 'N/A'}`;
+        const templateInfo = `Available Inspection Templates:\n${templates.map(t => `- ${t.name} (for ${t.department} department)`).join('\n')}`;
+        const managerInfo = `Available Managers: ${managers.map(m => m.name).join(', ')}`;
+        
+        const prompt = `
+            You are an expert hotel operations planner. Your task is to create a balanced and logical weekly inspection plan for a hotel director.
+            
+            **Goal:** Distribute required inspections evenly throughout the week to ensure all key areas are checked without overloading managers on any given day.
+            
+            **Context:**
+            ${hotelInfo}
+            ${templateInfo}
+            ${managerInfo}
+            
+            **Instructions:**
+            1.  Analyze the hotel's areas and the available inspection templates. Match templates to relevant areas (e.g., 'Daily Kitchen Hygiene' for a restaurant area, 'Bar Opening Checklist' for a bar).
+            2.  Create a schedule for the entire week (Monday to Sunday).
+            3.  Distribute the inspections across the week. A single area might need multiple different inspections on different days. High-traffic areas like restaurants might need a daily check (like 'Daily Kitchen Hygiene').
+            4.  Assign a manager to each inspection. Try to vary assignments.
+            5.  Ensure the workload is balanced. Avoid scheduling too many inspections on one day. The weekend (Saturday, Sunday) should have fewer inspections if possible, focusing on critical daily checks.
+            6.  The final output must be a JSON object that strictly conforms to the provided schema. Each day of the week must be a key. If a day has no inspections, provide an empty array.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                systemInstruction: "You are an AI assistant that creates structured JSON operational plans for the hospitality industry.",
+                responseMimeType: "application/json",
+                responseSchema: weeklyPlanSchema,
+                temperature: 0.5,
+            },
+        });
+
+        const jsonText = response.text;
+        const planData = JSON.parse(jsonText);
+        
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        for (const day of days) {
+            if (!planData[day] || !Array.isArray(planData[day])) {
+                throw new Error(`Invalid plan structure: missing or invalid data for ${day}.`);
+            }
+        }
+        
+        return planData as WeeklyPlan;
+
+    } catch (error) {
+        console.error("Error generating weekly plan:", error);
+        throw new Error("Failed to generate the inspection plan. Please try again.");
+    }
 };

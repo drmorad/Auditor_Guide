@@ -15,6 +15,7 @@ const CreateTaskModal: React.FC<{
     const [assigneeId, setAssigneeId] = useState('');
     const [dependencies, setDependencies] = useState<string[]>([]);
     const [status, setStatus] = useState<Task['status']>('pending');
+    const [parentId, setParentId] = useState('');
     const [error, setError] = useState('');
 
     const [isRecurring, setIsRecurring] = useState(false);
@@ -30,6 +31,7 @@ const CreateTaskModal: React.FC<{
             setAssigneeId('');
             setDependencies([]);
             setStatus('pending');
+            setParentId('');
             setError('');
             setIsRecurring(false);
             setFrequency('daily');
@@ -60,7 +62,7 @@ const CreateTaskModal: React.FC<{
             }
         }
 
-        const taskData: Omit<Task, 'id' | 'recurringInstanceId'> = { name, start, end, assigneeId, dependencies, status };
+        const taskData: Omit<Task, 'id' | 'recurringInstanceId'> = { name, start, end, assigneeId, dependencies, status, parentId: parentId || undefined };
         
         if (isRecurring) {
             onSave(taskData, { frequency, endDate: recurringEndDate });
@@ -122,6 +124,13 @@ const CreateTaskModal: React.FC<{
                                 <option value="completed">Completed</option>
                             </select>
                         </div>
+                    </div>
+                     <div>
+                        <label htmlFor="task-parent" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Task (Optional)</label>
+                        <select id="task-parent" value={parentId} onChange={e => setParentId(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
+                            <option value="">None</option>
+                            {tasks.map(task => <option key={task.id} value={task.id}>{task.name}</option>)}
+                        </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dependencies (Optional)</label>
@@ -245,12 +254,53 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
         return [...tasks].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     }, [tasks]);
 
+    const displayTasks = useMemo(() => {
+        const tasksWithLevel: (Task & { level: number })[] = [];
+        const childrenMap = new Map<string, Task[]>();
+        
+        sortedTasks.forEach(task => {
+            if (task.parentId) {
+                const children = childrenMap.get(task.parentId) || [];
+                children.push(task);
+                childrenMap.set(task.parentId, children);
+            }
+        });
+
+        const addChildren = (parentId: string, level: number) => {
+            const children = childrenMap.get(parentId)?.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+            if (children) {
+                children.forEach(child => {
+                    tasksWithLevel.push({ ...child, level });
+                    addChildren(child.id, level + 1);
+                });
+            }
+        };
+
+        sortedTasks.forEach(task => {
+            if (!task.parentId) {
+                tasksWithLevel.push({ ...task, level: 0 });
+                addChildren(task.id, 1);
+            }
+        });
+
+        return tasksWithLevel;
+    }, [sortedTasks]);
+
+
     const filteredTasks = useMemo(() => {
         if (statusFilter === 'all') {
-            return sortedTasks;
+            return displayTasks;
         }
-        return sortedTasks.filter(task => task.status === statusFilter);
-    }, [sortedTasks, statusFilter]);
+        
+        // When filtering, we need to decide if we show parent tasks of filtered subtasks.
+        // For simplicity here, we'll just filter the flat list.
+        // A more complex implementation might preserve the hierarchy.
+        const filtered = displayTasks.filter(task => task.status === statusFilter);
+        const parentIds = new Set(filtered.map(t => t.parentId).filter(Boolean));
+        const finalFilter = displayTasks.filter(task => task.status === statusFilter || parentIds.has(task.id));
+        return finalFilter;
+
+    }, [displayTasks, statusFilter]);
 
     const { dateRange, gridStartDate, totalDays, todayOffset } = useMemo(() => {
         if (tasks.length === 0) {
@@ -297,35 +347,27 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
         const newLines: DependencyLine[] = [];
         const containerRect = containerRef.current.getBoundingClientRect();
 
-        // The fixed offset from the SVG's 'top' style property within its parent container
-        // This value matches the 'top-[58px]' in the SVG's className.
         const svgTopOffset = 58;
 
-        sortedTasks.forEach(task => {
+        displayTasks.forEach(task => {
             if (task.dependencies.length > 0) {
                 const dependentEl = taskRefs.current[task.id];
                 if (!dependentEl) return;
                 const dependentRect = dependentEl.getBoundingClientRect();
-                // Y-coordinate of dependent task's center, relative to container's top, then adjusted for SVG's internal offset
                 const dependentCenterY = (dependentRect.top - containerRect.top + dependentRect.height / 2) - svgTopOffset;
 
                 task.dependencies.forEach(depId => {
                     const prerequisiteEl = taskRefs.current[depId];
                     if (!prerequisiteEl) return;
                     const prerequisiteRect = prerequisiteEl.getBoundingClientRect();
-                    // Y-coordinate of prerequisite task's center, relative to container's top, then adjusted for SVG's internal offset
                     const prerequisiteCenterY = (prerequisiteRect.top - containerRect.top + prerequisiteRect.height / 2) - svgTopOffset;
 
-                    // Start point for the line (right edge of prerequisite task bar)
                     const startX = prerequisiteRect.right - containerRect.left;
                     const startY = prerequisiteCenterY;
 
-                    // End point for the line (left edge of dependent task bar)
                     const endX = dependentRect.left - containerRect.left;
                     const endY = dependentCenterY;
 
-                    // Only draw if dependent task is visually to the right of the prerequisite and there's space for a curve
-                    // Minimum 5px space between tasks for the arrow to render cleanly
                     if (endX <= startX + 5) {
                         return;
                     }
@@ -352,7 +394,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
         } else {
             setTodayMarkerLeft(null);
         }
-    }, [sortedTasks, todayOffset]);
+    }, [displayTasks, todayOffset]);
     
     useEffect(() => {
         if (viewMode !== 'gantt') return;
@@ -386,7 +428,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
 
                 {/* Task Rows & Grid Background */}
                 <div className="grid" style={{ gridTemplateColumns: `250px repeat(${totalDays}, minmax(60px, 1fr))` }}>
-                    {sortedTasks.map((task, rowIndex) => {
+                    {displayTasks.map((task, rowIndex) => {
                         const taskStart = new Date(task.start);
                         const taskEnd = new Date(task.end);
                         const startOffset = daysBetween(gridStartDate, taskStart);
@@ -395,7 +437,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                         
                         return (
                             <React.Fragment key={task.id}>
-                                <div className="sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-b border-slate-200 dark:border-slate-700 p-2 flex items-center" style={{ gridRow: rowIndex + 1 }}>
+                                <div className="sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-b border-slate-200 dark:border-slate-700 p-2 flex items-center" style={{ gridRow: rowIndex + 1, paddingLeft: `${8 + task.level * 20}px` }}>
                                     <div className="flex items-center gap-2 overflow-hidden">
                                         {assignee && <img src={assignee.avatar} alt={assignee.name} className="w-6 h-6 rounded-full flex-shrink-0" title={`Assigned to ${assignee.name}`}/>}
                                         <span className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate" title={task.name}>{task.name}</span>
@@ -502,7 +544,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
 
                                 return (
                                     <tr key={task.id} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                        <td className="p-4 font-medium text-slate-900 dark:text-white">
+                                        <td className="p-4 font-medium text-slate-900 dark:text-white" style={{ paddingLeft: `${16 + task.level * 24}px` }}>
                                             {task.name}
                                             {dependencyNames && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Depends on: {dependencyNames}</div>}
                                         </td>

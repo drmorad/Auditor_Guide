@@ -20,6 +20,7 @@ import { Header } from './components/Header';
 import { getChatResponse } from './services/geminiService';
 import { View, User, Document, AuditLogEntry, Sop, SopTemplate, Hotel, InspectionRecord, ChatMessage, InspectionTemplate as InspectionTemplateType, Task } from './types';
 import { MOCK_USERS, MOCK_DOCUMENTS, MOCK_HOTELS, MOCK_INSPECTION_RECORDS, MOCK_INSPECTION_TEMPLATES, MOCK_TASKS } from './mockData';
+import { InspectionPlanner } from './components/InspectionPlanner';
 
 const APP_STORAGE_PREFIX = 'auditorsguide_';
 
@@ -363,6 +364,8 @@ const App: React.FC = () => {
         return <Reporting records={inspectionRecords} hotels={hotels} />;
        case View.Scheduler:
         return <Scheduler tasks={tasks} users={users} onAddTask={handleAddTask} />;
+       case View.Planner:
+        return <InspectionPlanner hotels={hotels} templates={inspectionTemplates} users={users} />;
       default:
         return <Dashboard hotel={selectedHotel} auditLogs={auditLogs} users={users} />;
     }

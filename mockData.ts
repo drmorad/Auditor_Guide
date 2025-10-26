@@ -1,4 +1,3 @@
-
 import { User, Document, Hotel, InspectionRecord, InspectionTemplate, Task, Area } from './types';
 
 export const MOCK_USERS: User[] = [
@@ -99,10 +98,11 @@ export const MOCK_INSPECTION_TEMPLATES: InspectionTemplate[] = [
 export const MOCK_TASKS: Task[] = [
     { id: 'task-1', name: 'Prepare Q3 Audit Report', start: '2024-08-05', end: '2024-08-09', dependencies: [], assigneeId: 'user-1', status: 'completed' },
     { id: 'task-2', name: 'Review Kitchen SOPs', start: '2024-08-08', end: '2024-08-12', dependencies: [], assigneeId: 'user-2', status: 'in-progress' },
-    { id: 'task-3', name: 'Finalize HACCP Plan', start: '2024-08-13', end: '2024-08-16', dependencies: ['task-2'], assigneeId: 'user-1', status: 'pending' },
+    { id: 'task-3', name: 'Finalize HACCP Plan', start: '2024-08-13', end: '2024-08-16', dependencies: ['task-2'], assigneeId: 'user-1', status: 'pending', parentId: 'task-2' },
     { id: 'task-4', name: 'Schedule Fire Safety Training', start: '2024-08-10', end: '2024-08-14', dependencies: [], assigneeId: 'user-3', status: 'in-progress' },
-    { id: 'task-5', name: 'Distribute Training Materials', start: '2024-08-15', end: '2024-08-16', dependencies: ['task-4'], assigneeId: 'user-3', status: 'pending' },
+    { id: 'task-5', name: 'Distribute Training Materials', start: '2024-08-15', end: '2024-08-16', dependencies: ['task-4'], assigneeId: 'user-3', status: 'pending', parentId: 'task-4' },
     { id: 'task-6', name: 'Present Audit Findings', start: '2024-08-19', end: '2024-08-20', dependencies: ['task-1', 'task-3'], assigneeId: 'user-1', status: 'pending' },
+    { id: 'task-7', name: 'Follow up on overdue inspection for Seaside Palace', start: '2024-07-20', end: '2024-07-21', dependencies: [], assigneeId: 'user-2', status: 'pending' },
 ];
 
 export const MOCK_INSPECTION_RECORDS: InspectionRecord[] = [
