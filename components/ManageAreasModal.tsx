@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Hotel, Area } from '../types';
 import { XIcon, TrashIcon, PlusCircleIcon } from './icons';
@@ -9,22 +8,51 @@ interface ManageAreasModalProps {
   onSave: (updatedHotel: Hotel) => void;
 }
 
-const AREA_TYPES: Area['type'][] = ['Outlet', 'Bar', 'Pool', 'Public Area', 'Back of House'];
+const SUGGESTED_AREA_TYPES: string[] = [
+    'Outlet',
+    'Bar',
+    'Pool',
+    'Public Area',
+    'Back of House',
+    'Kitchen',
+    'Restaurant',
+    'Lobby',
+    'Spa',
+    'Gym',
+    'Conference Room',
+    'Ballroom',
+    'Receiving',
+    'Storage',
+    'Staff Area',
+    'Room Service',
+    'Engineering',
+    'Laundry',
+    'Guest Room',
+    'Exterior',
+    'Parking',
+    'Business Center',
+    'Gift Shop',
+    'Rooftop',
+    'Terrace',
+    'Kids Club',
+];
+
 
 export const ManageAreasModal: React.FC<ManageAreasModalProps> = ({ hotel, onClose, onSave }) => {
   const [areas, setAreas] = useState<Area[]>(hotel.areas || []);
   const [newAreaName, setNewAreaName] = useState('');
-  const [newAreaType, setNewAreaType] = useState<Area['type']>('Outlet');
+  const [newAreaType, setNewAreaType] = useState<string>('');
 
   const handleAddArea = () => {
-    if (!newAreaName.trim()) return;
+    if (!newAreaName.trim() || !newAreaType.trim()) return;
     const newArea: Area = {
       id: `area-${Date.now()}`,
       name: newAreaName.trim(),
-      type: newAreaType,
+      type: newAreaType.trim(),
     };
     setAreas([...areas, newArea]);
     setNewAreaName('');
+    setNewAreaType('');
   };
 
   const handleDeleteArea = (areaId: string) => {
@@ -60,13 +88,17 @@ export const ManageAreasModal: React.FC<ManageAreasModalProps> = ({ hotel, onClo
                 placeholder="e.g., Main Kitchen, Sunset Bar"
                 className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
               />
-              <select
+              <input
+                list="area-types-datalist"
+                id="area-type-input"
                 value={newAreaType}
-                onChange={e => setNewAreaType(e.target.value as Area['type'])}
-                className="w-full sm:w-48 p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
-              >
-                {AREA_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
-              </select>
+                onChange={e => setNewAreaType(e.target.value)}
+                placeholder="Type or select a type"
+                className="w-full sm:w-56 p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"
+              />
+              <datalist id="area-types-datalist">
+                {SUGGESTED_AREA_TYPES.map(type => <option key={type} value={type} />)}
+              </datalist>
               <button onClick={handleAddArea} className="flex-shrink-0 bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 shadow-md flex items-center justify-center gap-2">
                   <PlusCircleIcon className="w-5 h-5"/> Add
               </button>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Task, User } from '../types';
-import { XIcon, PlusCircleIcon } from './icons';
+import { XIcon, PlusCircleIcon, MagicIcon } from './icons';
+import { suggestTaskDetails } from '../services/geminiService';
 
 const CreateTaskModal: React.FC<{
     isOpen: boolean;
@@ -10,6 +11,8 @@ const CreateTaskModal: React.FC<{
     tasks: Task[];
 }> = ({ isOpen, onClose, onSave, users, tasks }) => {
     const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [priority, setPriority] = useState<Task['priority']>('Medium');
     const [start, setStart] = useState('');
     const [end, setEnd] = useState('');
     const [assigneeId, setAssigneeId] = useState('');
@@ -21,11 +24,15 @@ const CreateTaskModal: React.FC<{
     const [isRecurring, setIsRecurring] = useState(false);
     const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('daily');
     const [recurringEndDate, setRecurringEndDate] = useState('');
+    
+    const [isSuggesting, setIsSuggesting] = useState(false);
 
     useEffect(() => {
         if (!isOpen) {
             // Reset form when modal closes
             setName('');
+            setDescription('');
+            setPriority('Medium');
             setStart('');
             setEnd('');
             setAssigneeId('');
@@ -36,6 +43,7 @@ const CreateTaskModal: React.FC<{
             setIsRecurring(false);
             setFrequency('daily');
             setRecurringEndDate('');
+            setIsSuggesting(false);
         }
     }, [isOpen]);
 
@@ -44,7 +52,7 @@ const CreateTaskModal: React.FC<{
     const handleSave = () => {
         setError('');
         if (!name || !start || !end || !assigneeId) {
-            setError('Please fill out all required fields.');
+            setError('Task name, start/end dates, and assignee are required.');
             return;
         }
         if (new Date(end) < new Date(start)) {
@@ -62,7 +70,7 @@ const CreateTaskModal: React.FC<{
             }
         }
 
-        const taskData: Omit<Task, 'id' | 'recurringInstanceId'> = { name, start, end, assigneeId, dependencies, status, parentId: parentId || undefined };
+        const taskData: Omit<Task, 'id' | 'recurringInstanceId'> = { name, start, end, assigneeId, dependencies, status, parentId: parentId || undefined, description, priority };
         
         if (isRecurring) {
             onSave(taskData, { frequency, endDate: recurringEndDate });
@@ -79,101 +87,157 @@ const CreateTaskModal: React.FC<{
                 : [...prev, taskId]
         );
     };
+    
+    const handleSuggestDetails = async () => {
+        if (!name.trim()) {
+            setError("Please enter a task name first to get suggestions.");
+            return;
+        }
+        setIsSuggesting(true);
+        setError('');
+        try {
+            const details = await suggestTaskDetails(name);
+            setDescription(prev => prev ? `${prev}\n\n${details}` : details);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to get AI suggestion.");
+        } finally {
+            setIsSuggesting(false);
+        }
+    };
 
     return (
         <div
             className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex justify-center items-center p-4 transition-opacity duration-300"
             onClick={onClose} aria-modal="true" role="dialog"
         >
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg relative animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl relative animate-fade-in-up flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">
                     <button onClick={onClose} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full">
                         <XIcon className="w-6 h-6" />
                     </button>
                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Create New Task</h2>
                 </div>
-                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="p-6 space-y-4 flex-grow overflow-y-auto">
                     {error && <p className="text-sm text-red-500 bg-red-100 dark:bg-red-900/50 p-3 rounded-md">{error}</p>}
-                    <div>
-                        <label htmlFor="task-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Task Name</label>
-                        <input id="task-name" type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"/>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    
+                    <fieldset className="space-y-4">
+                        <legend className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">Core Details</legend>
                         <div>
-                            <label htmlFor="task-start" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
-                            <input id="task-start" type="date" value={start} onChange={e => setStart(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"/>
+                            <label htmlFor="task-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Task Name</label>
+                            <input id="task-name" type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"/>
                         </div>
                         <div>
-                            <label htmlFor="task-end" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date</label>
-                            <input id="task-end" type="date" value={end} onChange={e => setEnd(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"/>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="task-assignee" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assignee</label>
-                            <select id="task-assignee" value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
-                                <option value="" disabled>Select a user...</option>
-                                {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
-                            </select>
+                            <div className="flex justify-between items-center mb-1">
+                                <label htmlFor="task-description" className="block text-sm font-medium text-slate-700 dark:text-slate-300">Description</label>
+                                <button type="button" onClick={handleSuggestDetails} disabled={isSuggesting || !name} className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {isSuggesting ? (
+                                        <div className="w-4 h-4 border-2 border-primary-400 border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <MagicIcon className="w-4 h-4"/>
+                                    )}
+                                    Suggest with AI
+                                </button>
+                            </div>
+                            <textarea id="task-description" value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"/>
                         </div>
                          <div>
-                            <label htmlFor="task-status" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label>
-                            <select id="task-status" value={status} onChange={e => setStatus(e.target.value as Task['status'])} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
-                                <option value="pending">Pending</option>
-                                <option value="in-progress">In-progress</option>
-                                <option value="completed">Completed</option>
+                            <label htmlFor="task-priority" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Priority</label>
+                            <select id="task-priority" value={priority} onChange={e => setPriority(e.target.value as Task['priority'])} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
                             </select>
                         </div>
-                    </div>
-                     <div>
-                        <label htmlFor="task-parent" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Task (Optional)</label>
-                        <select id="task-parent" value={parentId} onChange={e => setParentId(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
-                            <option value="">None</option>
-                            {tasks.map(task => <option key={task.id} value={task.id}>{task.name}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dependencies (Optional)</label>
-                        <div className="max-h-32 overflow-y-auto p-2 border border-slate-300 dark:border-slate-600 rounded-md space-y-2">
-                            {tasks.length > 0 ? tasks.map(task => (
-                                <label key={task.id} className="flex items-center space-x-2 cursor-pointer">
-                                    <input type="checkbox" checked={dependencies.includes(task.id)} onChange={() => handleDependencyToggle(task.id)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"/>
-                                    <span className="text-sm text-slate-800 dark:text-slate-200">{task.name}</span>
-                                </label>
-                            )) : <p className="text-xs text-slate-500">No other tasks exist to depend on.</p>}
-                        </div>
-                    </div>
-                    {/* Recurring Task Section */}
-                    <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3">
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                           <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"/>
-                           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Make this a recurring task</span>
-                        </label>
-                        {isRecurring && (
-                            <div className="grid grid-cols-2 gap-4 animate-fade-in bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                                <div>
-                                    <label htmlFor="task-frequency" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Frequency</label>
-                                    <select id="task-frequency" value={frequency} onChange={e => setFrequency(e.target.value as any)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm">
-                                        <option value="daily">Daily</option>
-                                        <option value="weekly">Weekly</option>
-                                        <option value="monthly">Monthly</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label htmlFor="task-recurring-end" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Repeat until</label>
-                                    <input id="task-recurring-end" type="date" value={recurringEndDate} onChange={e => setRecurringEndDate(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm"/>
-                                </div>
+                    </fieldset>
+
+                    <fieldset className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <legend className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">Scheduling & Assignment</legend>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="task-start" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
+                                <input id="task-start" type="date" value={start} onChange={e => setStart(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"/>
                             </div>
-                        )}
-                    </div>
+                            <div>
+                                <label htmlFor="task-end" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date</label>
+                                <input id="task-end" type="date" value={end} onChange={e => setEnd(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700"/>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="task-assignee" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assignee</label>
+                                <select id="task-assignee" value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
+                                    <option value="" disabled>Select a user...</option>
+                                    {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="task-status" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label>
+                                <select id="task-status" value={status} onChange={e => setStatus(e.target.value as Task['status'])} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
+                                    <option value="pending">Pending</option>
+                                    <option value="in-progress">In-progress</option>
+                                    <option value="completed">Completed</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="pt-2 space-y-3">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"/>
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Make this a recurring task</span>
+                            </label>
+                            {isRecurring && (
+                                <div className="grid grid-cols-2 gap-4 animate-fade-in bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                                    <div>
+                                        <label htmlFor="task-frequency" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Frequency</label>
+                                        <select id="task-frequency" value={frequency} onChange={e => setFrequency(e.target.value as any)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm">
+                                            <option value="daily">Daily</option>
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly">Monthly</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="task-recurring-end" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Repeat until</label>
+                                        <input id="task-recurring-end" type="date" value={recurringEndDate} onChange={e => setRecurringEndDate(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-sm"/>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </fieldset>
+                    
+                    <fieldset className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <legend className="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-2">Relationships</legend>
+                         <div>
+                            <label htmlFor="task-parent" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Task (Optional)</label>
+                            <select id="task-parent" value={parentId} onChange={e => setParentId(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
+                                <option value="">None</option>
+                                {tasks.map(task => <option key={task.id} value={task.id}>{task.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dependencies (Optional)</label>
+                            <div className="max-h-32 overflow-y-auto p-2 border border-slate-300 dark:border-slate-600 rounded-md space-y-2">
+                                {tasks.length > 0 ? tasks.map(task => (
+                                    <label key={task.id} className="flex items-center space-x-2 cursor-pointer">
+                                        <input type="checkbox" checked={dependencies.includes(task.id)} onChange={() => handleDependencyToggle(task.id)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"/>
+                                        <span className="text-sm text-slate-800 dark:text-slate-200">{task.name}</span>
+                                    </label>
+                                )) : <p className="text-xs text-slate-500">No other tasks exist to depend on.</p>}
+                            </div>
+                        </div>
+                    </fieldset>
                 </div>
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 flex-shrink-0">
                     <button onClick={onClose} className="bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg">Cancel</button>
                     <button onClick={handleSave} className="bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 shadow-md">Save Task</button>
                 </div>
             </div>
         </div>
     );
+};
+
+const addDaysToDateString = (dateStr: string, days: number): string => {
+    const date = new Date(dateStr + 'T12:00:00Z'); // Use noon to avoid timezone issues
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split('T')[0];
 };
 
 // Helper to get number of days between two dates, ignoring time
@@ -210,6 +274,16 @@ const getStatusStyles = (task: Task) => { // Now takes the full task object
     }
 };
 
+const getTaskBarStyles = (task: Task) => {
+    const statusClass = getStatusStyles(task);
+    const priorityClass = {
+        Low: 'border-l-4 border-green-400',
+        Medium: 'border-l-4 border-yellow-400',
+        High: 'border-l-4 border-red-400',
+    };
+    return `${statusClass} ${priorityClass[task.priority || 'Medium']}`;
+};
+
 const StatusBadge: React.FC<{ status: Task['status'] }> = ({ status }) => {
   const styles = {
     pending: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300',
@@ -228,27 +302,51 @@ const StatusBadge: React.FC<{ status: Task['status'] }> = ({ status }) => {
   );
 };
 
+const PriorityBadge: React.FC<{ priority: Task['priority'] }> = ({ priority = 'Medium' }) => {
+    const styles = {
+        Low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:green-300',
+        Medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+        High: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    };
+    return (
+        <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[priority]}`}>
+            {priority}
+        </span>
+    );
+};
 
 interface DependencyLine {
     id: string;
     path: string;
 }
 
+type InteractionState =
+    | { type: 'move'; taskId: string; initialX: number; initialTask: Task; childTasks: Task[]; daysMoved: number; }
+    | { type: 'resize-end'; taskId: string; initialX: number; initialTask: Task; }
+    | { type: 'resize-start'; taskId: string; initialX: number; initialTask: Task; }
+    | { type: 'link'; fromId: string; fromX: number; fromY: number; toX: number; toY: number; };
+
+
 interface SchedulerProps {
     tasks: Task[];
     users: User[];
     onAddTask: (task: Omit<Task, 'id' | 'recurringInstanceId'>, recurring?: { frequency: 'daily' | 'weekly' | 'monthly'; endDate: string; }) => void;
+    onUpdateTasks: (updatedTasks: Task[]) => void;
 }
 
-export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask }) => {
+export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, onUpdateTasks }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const ganttGridRef = useRef<HTMLDivElement>(null);
     const taskRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const dateHeaderRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const dayWidthRef = useRef<number>(60);
+    
     const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
     const [todayMarkerLeft, setTodayMarkerLeft] = useState<number | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'gantt' | 'list'>('gantt');
-    const [statusFilter, setStatusFilter] = useState<'all' | Task['status']>('all'); // New state for status filter
+    const [statusFilter, setStatusFilter] = useState<'all' | Task['status']>('all');
+    const [interaction, setInteraction] = useState<InteractionState | null>(null);
     
     const sortedTasks = useMemo(() => {
         return [...tasks].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
@@ -292,9 +390,6 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
             return displayTasks;
         }
         
-        // When filtering, we need to decide if we show parent tasks of filtered subtasks.
-        // For simplicity here, we'll just filter the flat list.
-        // A more complex implementation might preserve the hierarchy.
         const filtered = displayTasks.filter(task => task.status === statusFilter);
         const parentIds = new Set(filtered.map(t => t.parentId).filter(Boolean));
         const finalFilter = displayTasks.filter(task => task.status === statusFilter || parentIds.has(task.id));
@@ -368,15 +463,11 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                     const endX = dependentRect.left - containerRect.left;
                     const endY = dependentCenterY;
 
-                    if (endX <= startX + 5) {
-                        return;
-                    }
+                    if (endX <= startX + 5) return;
 
-                    const horizontalOffset = Math.max(20, (endX - startX) * 0.1);
-
-                    const controlX1 = startX + horizontalOffset;
+                    const controlX1 = startX + 20;
                     const controlY1 = startY;
-                    const controlX2 = endX - horizontalOffset;
+                    const controlX2 = endX - 20;
                     const controlY2 = endY;
 
                     const path = `M ${startX} ${startY} C ${controlX1} ${controlY1}, ${controlX2} ${controlY2}, ${endX} ${endY}`;
@@ -388,35 +479,146 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
 
         if (todayOffset >= 0 && dateHeaderRefs.current[todayOffset]) {
             const todayEl = dateHeaderRefs.current[todayOffset];
-            if (todayEl) {
-                setTodayMarkerLeft(todayEl.offsetLeft + todayEl.offsetWidth / 2);
-            }
+            if (todayEl) setTodayMarkerLeft(todayEl.offsetLeft + todayEl.offsetWidth / 2);
         } else {
             setTodayMarkerLeft(null);
         }
-    }, [displayTasks, todayOffset]);
+
+        if (ganttGridRef.current) {
+            dayWidthRef.current = (ganttGridRef.current.scrollWidth - 250) / totalDays;
+        }
+
+    }, [displayTasks, todayOffset, totalDays]);
     
     useEffect(() => {
         if (viewMode !== 'gantt') return;
-        const timeoutId = setTimeout(recalculatePositions, 100);
         const observer = new ResizeObserver(recalculatePositions);
         const container = containerRef.current;
-        if (container) {
-            observer.observe(container);
-        }
+        if (container) observer.observe(container);
+        recalculatePositions();
         return () => {
-            clearTimeout(timeoutId);
-            if (container) {
-                observer.unobserve(container);
+            if (container) observer.unobserve(container);
+        };
+    }, [recalculatePositions, viewMode, tasks]);
+
+
+    const getChildrenRecursive = useCallback((taskId: string, allTasks: Task[]): Task[] => {
+        const children = allTasks.filter(t => t.parentId === taskId);
+        return [...children, ...children.flatMap(c => getChildrenRecursive(c.id, allTasks))];
+    }, []);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!interaction) return;
+            
+            const dx = e.clientX - interaction.initialX;
+            const daysMoved = Math.round(dx / dayWidthRef.current);
+
+            switch (interaction.type) {
+                case 'move':
+                    setInteraction({ ...interaction, daysMoved });
+                    break;
+                case 'resize-end':
+                case 'resize-start':
+                     setInteraction({ ...interaction, initialX: e.clientX }); // update initialX to prevent acceleration
+                     break;
+                case 'link': {
+                    if (!containerRef.current) return;
+                    const rect = containerRef.current.getBoundingClientRect();
+                    setInteraction({
+                        ...interaction,
+                        toX: e.clientX - rect.left,
+                        toY: e.clientY - rect.top - 58
+                    });
+                     // Highlight target task
+                    document.querySelectorAll('[data-task-id]').forEach(el => el.classList.remove('ring-2', 'ring-primary-500'));
+                    const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-task-id]');
+                    if (targetEl && targetEl.getAttribute('data-task-id') !== interaction.fromId) {
+                        targetEl.classList.add('ring-2', 'ring-primary-500');
+                    }
+                    break;
+                }
             }
         };
-    }, [recalculatePositions, viewMode]);
+
+        const handleMouseUp = (e: MouseEvent) => {
+            if (!interaction) return;
+            const { type } = interaction;
+            const dx = e.clientX - interaction.initialX;
+            const daysMoved = Math.round(dx / dayWidthRef.current);
+            
+            if (type === 'move') {
+                const { initialTask, childTasks } = interaction;
+                if (daysMoved !== 0) {
+                    const updatedParent = { ...initialTask, start: addDaysToDateString(initialTask.start, daysMoved), end: addDaysToDateString(initialTask.end, daysMoved) };
+                    const updatedChildren = childTasks.map(child => ({ ...child, start: addDaysToDateString(child.start, daysMoved), end: addDaysToDateString(child.end, daysMoved) }));
+                    onUpdateTasks([updatedParent, ...updatedChildren]);
+                }
+            } else if (type === 'resize-end') {
+                const { initialTask } = interaction;
+                const newEnd = addDaysToDateString(initialTask.end, daysMoved);
+                if (newEnd >= initialTask.start) {
+                    onUpdateTasks([{ ...initialTask, end: newEnd }]);
+                }
+            } else if (type === 'resize-start') {
+                 const { initialTask } = interaction;
+                 const newStart = addDaysToDateString(initialTask.start, daysMoved);
+                 if (newStart <= initialTask.end) {
+                     onUpdateTasks([{...initialTask, start: newStart}]);
+                 }
+            } else if (type === 'link') {
+                 document.querySelectorAll('[data-task-id]').forEach(el => el.classList.remove('ring-2', 'ring-primary-500'));
+                 const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-task-id]');
+                 const toId = targetEl?.getAttribute('data-task-id');
+                 const fromId = interaction.fromId;
+                 if (toId && fromId && toId !== fromId) {
+                     const targetTask = tasks.find(t => t.id === toId);
+                     if (targetTask && !targetTask.dependencies.includes(fromId)) {
+                         const updatedTask = { ...targetTask, dependencies: [...targetTask.dependencies, fromId] };
+                         onUpdateTasks([updatedTask]);
+                     }
+                 }
+            }
+
+            setInteraction(null);
+        };
+        
+        if (interaction) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [interaction, tasks, onUpdateTasks, getChildrenRecursive]);
+
+    const handleInteractionStart = (e: React.MouseEvent, task: Task, type: 'move' | 'resize-start' | 'resize-end' | 'link') => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (type === 'link') {
+            const rect = (e.target as HTMLElement).getBoundingClientRect();
+            const containerRect = containerRef.current!.getBoundingClientRect();
+             setInteraction({
+                type: 'link',
+                fromId: task.id,
+                fromX: (rect.left + rect.width / 2) - containerRect.left,
+                fromY: (rect.top + rect.height / 2) - containerRect.top - 58, // 58px header height
+                toX: e.clientX - containerRect.left,
+                toY: e.clientY - containerRect.top - 58,
+            });
+        } else {
+             const childTasks = type === 'move' ? getChildrenRecursive(task.id, tasks) : [];
+             setInteraction({ type, taskId: task.id, initialX: e.clientX, initialTask: task, childTasks, daysMoved: 0 });
+        }
+    };
 
     const renderGanttView = () => (
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md overflow-x-auto" >
               <div className="relative min-w-max" ref={containerRef}>
                 {/* Timeline Header */}
-                <div className="grid sticky top-0 bg-white dark:bg-slate-800 z-30" style={{ gridTemplateColumns: `250px repeat(${totalDays}, minmax(60px, 1fr))` }}>
+                <div className="grid sticky top-0 bg-white dark:bg-slate-800 z-30" ref={ganttGridRef} style={{ gridTemplateColumns: `250px repeat(${totalDays}, minmax(60px, 1fr))` }}>
                     <div className="sticky left-0 bg-white dark:bg-slate-800 z-40 border-r border-b border-slate-200 dark:border-slate-700 p-2 font-semibold text-slate-700 dark:text-slate-200">Task</div>
                     {dateRange.map((date, index) => (
                         <div key={index} ref={el => { dateHeaderRefs.current[index] = el; }} className="text-center border-b border-l border-slate-200 dark:border-slate-700 p-2 text-xs text-slate-500 dark:text-slate-400">
@@ -431,9 +633,14 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                     {displayTasks.map((task, rowIndex) => {
                         const taskStart = new Date(task.start);
                         const taskEnd = new Date(task.end);
-                        const startOffset = daysBetween(gridStartDate, taskStart);
-                        const duration = daysBetween(taskStart, taskEnd) + 1;
+                        let startOffset = daysBetween(gridStartDate, taskStart);
+                        let duration = daysBetween(taskStart, taskEnd) + 1;
                         const assignee = users.find(u => u.id === task.assigneeId);
+
+                        const isBeingMoved = interaction?.type === 'move' && (interaction.taskId === task.id || interaction.childTasks.some(c => c.id === task.id));
+                        if (isBeingMoved) {
+                            startOffset += interaction.daysMoved;
+                        }
                         
                         return (
                             <React.Fragment key={task.id}>
@@ -447,7 +654,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                                     <div key={i} className="h-14 border-b border-l border-slate-200 dark:border-slate-700/50" style={{ gridColumn: i + 2, gridRow: rowIndex + 1 }}></div>
                                 ))}
                                 <div 
-                                    className="p-2 h-14 flex items-center z-10" 
+                                    className={`p-2 h-14 flex items-center z-10 ${isBeingMoved ? 'opacity-50' : ''}`}
                                     style={{ 
                                         gridColumn: `${startOffset + 2} / span ${duration}`,
                                         gridRow: rowIndex + 1,
@@ -455,26 +662,44 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                                 >
                                     <div
                                         ref={el => { taskRefs.current[task.id] = el; }}
-                                        className={`group relative w-full h-10 rounded-lg flex items-center px-3 text-white text-sm font-bold border-b-2 shadow-sm truncate cursor-pointer transition-transform duration-200 hover:scale-[1.02] hover:shadow-lg ${getStatusStyles(task)}`}
+                                        className={`group relative w-full h-10 rounded-lg flex items-center px-3 text-white text-sm font-bold border-b-2 shadow-sm truncate transition-transform duration-200 hover:shadow-lg ${getTaskBarStyles(task)}`}
                                         data-task-id={task.id}
+                                        onMouseDown={(e) => handleInteractionStart(e, task, 'move')}
                                     >
-                                        <span className="truncate">{task.name}</span>
-                                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-xs rounded py-1 px-2 pointer-events-none whitespace-nowrap shadow-lg">
-                                            {task.name}<br/>
-                                            <span className="font-normal">{formatDate(taskStart)} - {formatDate(taskEnd)}</span><br/>
-                                            <span className="font-normal">Assignee: {assignee?.name}</span>
+                                        <div className="absolute left-0 top-0 h-full w-2 cursor-ew-resize" onMouseDown={(e) => handleInteractionStart(e, task, 'resize-start')}></div>
+                                        <span className="truncate pointer-events-none">{task.name}</span>
+                                        <div className="absolute right-0 top-0 h-full w-2 cursor-ew-resize" onMouseDown={(e) => handleInteractionStart(e, task, 'resize-end')}></div>
+                                        <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-3 h-3 bg-slate-100 dark:bg-slate-600 rounded-full border-2 border-primary-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity" onMouseDown={(e) => handleInteractionStart(e, task, 'link')}></div>
+                                        
+                                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-xs rounded py-1 px-2 pointer-events-none whitespace-nowrap shadow-lg w-max max-w-xs z-50">
+                                            <p className="font-bold">{task.name}</p>
+                                            <p className="font-normal">{formatDate(taskStart)} - {formatDate(taskEnd)}</p>
+                                            <p className="font-normal">Assignee: {assignee?.name}</p>
+                                            <p className="font-normal">Priority: {task.priority || 'Medium'}</p>
+                                            {task.description && <p className="font-normal whitespace-pre-wrap mt-1 border-t border-slate-600 pt-1 text-left">{task.description}</p>}
                                         </div>
                                     </div>
                                 </div>
                             </React.Fragment>
                         );
                     })}
+                    {/* Ghost element for drag feedback */}
+                    {interaction?.type === 'move' && (
+                        <div className="absolute top-0 h-14 p-2 z-20 pointer-events-none" style={{
+                            left: 250 + (daysBetween(gridStartDate, new Date(interaction.initialTask.start)) + interaction.daysMoved) * dayWidthRef.current,
+                            width: (daysBetween(new Date(interaction.initialTask.start), new Date(interaction.initialTask.end)) + 1) * dayWidthRef.current,
+                            gridRow: displayTasks.findIndex(t => t.id === interaction.taskId) + 1,
+                            top: 58 + (displayTasks.findIndex(t => t.id === interaction.taskId)) * 56,
+                        }}>
+                             <div className="w-full h-10 rounded-lg bg-primary-500/30 border-2 border-dashed border-primary-500"></div>
+                        </div>
+                    )}
                 </div>
                 
                 {todayMarkerLeft !== null && (
                     <div 
                         className="absolute top-0 bottom-0 w-0.5 bg-red-500/80 z-20 pointer-events-none"
-                        style={{ left: `${todayMarkerLeft}px` }}
+                        style={{ left: `${250 + todayMarkerLeft}px` }}
                         title={`Today, ${formatDate(new Date())}`}
                     >
                         <div className="sticky top-0 -ml-2 mt-[52px] w-5 h-5 border-2 border-red-500 bg-white dark:bg-slate-800 rounded-full shadow-md"></div>
@@ -498,6 +723,15 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                             className="opacity-75"
                         />
                     ))}
+                    {interaction?.type === 'link' && (
+                         <path
+                            d={`M ${interaction.fromX} ${interaction.fromY} L ${interaction.toX} ${interaction.toY}`}
+                            stroke="#4f46e5"
+                            strokeWidth="2"
+                            strokeDasharray="4 4"
+                            fill="none"
+                        />
+                    )}
                 </svg>
               </div>
             </div>
@@ -530,6 +764,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                             <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Task</th>
                             <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Assignee</th>
                             <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Timeline</th>
+                            <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Priority</th>
                             <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Status</th>
                         </tr>
                     </thead>
@@ -544,7 +779,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
 
                                 return (
                                     <tr key={task.id} className="border-b border-slate-200 dark:border-slate-700 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                        <td className="p-4 font-medium text-slate-900 dark:text-white" style={{ paddingLeft: `${16 + task.level * 24}px` }}>
+                                        <td className="p-4 font-medium text-slate-900 dark:text-white" style={{ paddingLeft: `${16 + task.level * 24}px` }} title={task.description}>
                                             {task.name}
                                             {dependencyNames && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Depends on: {dependencyNames}</div>}
                                         </td>
@@ -559,13 +794,14 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask })
                                         <td className="p-4 text-sm text-slate-600 dark:text-slate-400">
                                             {formatDate(new Date(task.start))} - {formatDate(new Date(task.end))}
                                         </td>
+                                        <td className="p-4"><PriorityBadge priority={task.priority} /></td>
                                         <td className="p-4"><StatusBadge status={task.status} /></td>
                                     </tr>
                                 );
                             })
                         ) : (
                             <tr>
-                                <td colSpan={4} className="text-center p-8 text-slate-500 dark:text-slate-400">
+                                <td colSpan={5} className="text-center p-8 text-slate-500 dark:text-slate-400">
                                     No tasks found matching your filter.
                                 </td>
                             </tr>

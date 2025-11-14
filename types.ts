@@ -29,7 +29,7 @@ export interface Sop {
 export interface Area {
   id: string;
   name: string;
-  type: 'Outlet' | 'Bar' | 'Pool' | 'Public Area' | 'Back of House';
+  type: string;
 }
 
 export interface Hotel {
@@ -146,6 +146,8 @@ export interface Task {
   status: 'pending' | 'in-progress' | 'completed';
   recurringInstanceId?: string; // To group recurring tasks
   parentId?: string; // ID of the parent task
+  description?: string;
+  priority?: 'Low' | 'Medium' | 'High';
 }
 
 export interface PlannedInspection {

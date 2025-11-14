@@ -50,7 +50,13 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>(() => getStoredItem('users', MOCK_USERS));
   const [documents, setDocuments] = useState<Document[]>(() => getStoredItem('documents', MOCK_DOCUMENTS));
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => getStoredItem('auditLogs', []));
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
+    const storedLogs = getStoredItem<AuditLogEntry[]>('auditLogs', []);
+    return storedLogs.map(log => ({
+      ...log,
+      timestamp: new Date(log.timestamp),
+    }));
+  });
   const [hotels, setHotels] = useState<Hotel[]>(() => getStoredItem('hotels', MOCK_HOTELS));
   const [inspectionRecords, setInspectionRecords] = useState<InspectionRecord[]>(() => getStoredItem('inspectionRecords', MOCK_INSPECTION_RECORDS));
   const [inspectionTemplates, setInspectionTemplates] = useState<InspectionTemplateType[]>(() => getStoredItem('inspectionTemplates', MOCK_INSPECTION_TEMPLATES));
@@ -279,6 +285,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateTasks = (updatedTasks: Task[]) => {
+    setTasks(currentTasks => {
+        const updatedTasksMap = new Map(updatedTasks.map(t => [t.id, t]));
+        return currentTasks.map(t => updatedTasksMap.get(t.id) || t);
+    });
+    addAuditLog('Task(s) Updated', `Updated ${updatedTasks.length} task(s) via the scheduler.`);
+  };
+
   const handleSendMessage = async (message: string) => {
       setChatHistory(prev => [...prev, { sender: 'user', text: message }]);
       setIsChatLoading(true);
@@ -363,7 +377,7 @@ const App: React.FC = () => {
       case View.Reporting:
         return <Reporting records={inspectionRecords} hotels={hotels} />;
        case View.Scheduler:
-        return <Scheduler tasks={tasks} users={users} onAddTask={handleAddTask} />;
+        return <Scheduler tasks={tasks} users={users} onAddTask={handleAddTask} onUpdateTasks={handleUpdateTasks} />;
        case View.Planner:
         return <InspectionPlanner hotels={hotels} templates={inspectionTemplates} users={users} />;
       default:

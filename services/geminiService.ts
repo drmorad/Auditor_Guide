@@ -184,6 +184,34 @@ export const getChatResponse = async (question: string, context: string): Promis
     }
 };
 
+export const suggestTaskDetails = async (taskName: string): Promise<string> => {
+    try {
+        const prompt = `
+            You are an expert operations planner for the hospitality industry.
+            Given a task name, generate a concise, actionable description for it.
+            The description should be formatted as a checklist using markdown-style square brackets like "- [ ]".
+            This will help the assignee understand the specific steps required for completion.
+
+            Task Name: "${taskName}"
+
+            Generate a description with a few checklist items. Be concise.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                temperature: 0.8, // Higher temperature for more creative/varied suggestions
+            },
+        });
+
+        return response.text;
+    } catch (error) {
+        console.error("Error suggesting task details:", error);
+        throw new Error("Failed to get task details from the AI assistant.");
+    }
+};
+
 export const suggestUserRole = async (jobTitle: string): Promise<{ role: UserRole; reasoning: string; }> => {
   const roleSuggestionSchema = {
     type: Type.OBJECT,
@@ -304,14 +332,17 @@ export const generateWeeklyInspectionPlan = async (hotel: Hotel, templates: Insp
         const jsonText = response.text;
         const planData = JSON.parse(jsonText);
         
-        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-        for (const day of days) {
-            if (!planData[day] || !Array.isArray(planData[day])) {
-                throw new Error(`Invalid plan structure: missing or invalid data for ${day}.`);
-            }
-        }
+        const finalPlan: WeeklyPlan = {
+            monday: planData.monday && Array.isArray(planData.monday) ? planData.monday : [],
+            tuesday: planData.tuesday && Array.isArray(planData.tuesday) ? planData.tuesday : [],
+            wednesday: planData.wednesday && Array.isArray(planData.wednesday) ? planData.wednesday : [],
+            thursday: planData.thursday && Array.isArray(planData.thursday) ? planData.thursday : [],
+            friday: planData.friday && Array.isArray(planData.friday) ? planData.friday : [],
+            saturday: planData.saturday && Array.isArray(planData.saturday) ? planData.saturday : [],
+            sunday: planData.sunday && Array.isArray(planData.sunday) ? planData.sunday : [],
+        };
         
-        return planData as WeeklyPlan;
+        return finalPlan;
 
     } catch (error) {
         console.error("Error generating weekly plan:", error);
