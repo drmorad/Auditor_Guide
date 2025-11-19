@@ -80,8 +80,10 @@ const InlineNoteEditor: React.FC<{
   );
 };
 
+const TOOLTIP_VERTICAL_OFFSET = 40; // Height of the tooltip + a small margin to position it above the selection.
+const HALF_TOOLTIP_WIDTH = 50; // Half of the tooltip's approximate width, used to center it horizontally.
 
-export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onClose, onUpdateDocument, addAuditLog }) => {
+export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document: docProp, onClose, onUpdateDocument, addAuditLog }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const tempHighlightRef = useRef<HTMLElement | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -89,14 +91,14 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
   const [noteEditorState, setNoteEditorState] = useState<{ top: number; left: number; text: string; } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedContent, setEditedContent] = useState(document.content || '');
+  const [editedContent, setEditedContent] = useState(docProp.content || '');
   
-  const isNativeTextDocument = useMemo(() => document.type?.startsWith('text/') && !document.embedLink, [document]);
+  const isNativeTextDocument = useMemo(() => docProp.type?.startsWith('text/') && !docProp.embedLink, [docProp]);
 
   useEffect(() => {
-    setEditedContent(document.content || '');
+    setEditedContent(docProp.content || '');
     setIsEditing(false);
-  }, [document]);
+  }, [docProp]);
 
   useEffect(() => {
     if (isEditing) {
@@ -113,24 +115,24 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    setEditedContent(document.content || '');
+    setEditedContent(docProp.content || '');
   };
 
   const handleSaveEdit = () => {
-    if (editedContent === document.content) {
+    if (editedContent === docProp.content) {
       setIsEditing(false);
       return;
     }
 
     const updatedDocument = {
-      ...document,
+      ...docProp,
       content: editedContent,
       lastModified: new Date().toISOString().split('T')[0],
       modifiedBy: 'Current User',
     };
 
     onUpdateDocument(updatedDocument);
-    addAuditLog('Document Content Edited', `Updated content for document: "${document.name}"`);
+    addAuditLog('Document Content Edited', `Updated content for document: "${docProp.name}"`);
     setIsEditing(false);
   };
 
@@ -169,7 +171,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
 
         const range = selection.getRangeAt(0);
         
-        const span = window.document.createElement('span');
+        const span = document.createElement('span');
         span.className = 'bg-yellow-200 dark:bg-yellow-700/60 rounded';
         tempHighlightRef.current = span;
 
@@ -181,8 +183,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
     
             setTooltip({
                 visible: true,
-                top: rect.top - containerRect.top - 40,
-                left: rect.left - containerRect.left + rect.width / 2 - 50,
+                top: rect.top - containerRect.top - TOOLTIP_VERTICAL_OFFSET,
+                left: rect.left - containerRect.top + rect.width / 2 - HALF_TOOLTIP_WIDTH,
                 text: selectedText
             });
             selection.removeAllRanges(); 
@@ -219,8 +221,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
     };
     
     const updatedDocument = {
-      ...document,
-      notes: [...(document.notes || []), newNote]
+      ...docProp,
+      notes: [...(docProp.notes || []), newNote]
     };
 
     onUpdateDocument(updatedDocument);
@@ -228,7 +230,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
     const highlightSnippet = noteEditorState.text.length > 30 
       ? `${noteEditorState.text.substring(0, 30)}...`
       : noteEditorState.text;
-    addAuditLog('Note Added', `Added note to "${document.name}" for text: "${highlightSnippet}"`);
+    addAuditLog('Note Added', `Added note to "${docProp.name}" for text: "${highlightSnippet}"`);
     
     clearSelection(); 
     setNoteEditorState(null);
@@ -241,15 +243,14 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
   };
 
   const renderHighlightedContent = useMemo(() => {
-    if (!isNativeTextDocument || !document.content) return null;
-    const content = document.content;
-    const highlights = document.notes?.map(n => n.highlightedText) || [];
+    if (!isNativeTextDocument || !docProp.content) return null;
+    const content = docProp.content;
+    const highlights = docProp.notes?.map(n => n.highlightedText) || [];
     
     if (!showNotes || highlights.length === 0) {
         return <pre className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">{content}</pre>;
     }
 
-    // FIX: Filter out any non-string or empty values from highlights to ensure type safety and prevent invalid regex patterns.
     const uniqueHighlights = [...new Set(highlights)].filter((h): h is string => typeof h === 'string' && h.length > 0);
 
     if (uniqueHighlights.length === 0) {
@@ -272,10 +273,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
             )}
         </pre>
     );
-  }, [document.content, document.notes, isNativeTextDocument, showNotes]);
+  }, [docProp.content, docProp.notes, isNativeTextDocument, showNotes]);
 
   const renderContent = () => {
-    const { embedLink, type, content, name } = document;
+    const { embedLink, type, content, name } = docProp;
 
     if (embedLink) {
         return <iframe src={embedLink} className="w-full h-full min-h-[60vh] rounded-lg border-0" title={name}></iframe>;
@@ -352,7 +353,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
             <XIcon className="w-6 h-6" />
           </button>
           <div className="flex justify-between items-start pr-10">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white truncate">{document.name}</h2>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white truncate">{docProp.name}</h2>
             <div className="flex items-center gap-2 flex-shrink-0">
                {isNativeTextDocument && !isEditing && (
                 <button
@@ -373,16 +374,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
                   <ChatBubbleIcon className="w-5 h-5" />
                   <span>{showNotes ? 'Hide Notes' : 'Show Notes'}</span>
                   <span className="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200 text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                    {document.notes?.length || 0}
+                    {docProp.notes?.length || 0}
                   </span>
                 </button>
               )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm mt-2">
-              <div><span className="font-semibold text-slate-600 dark:text-slate-400">Category: </span><CategoryBadge category={document.category} /></div>
-              {document.tags.length > 0 && <div className="flex items-center gap-2"><span className="font-semibold text-slate-600 dark:text-slate-400">Tags: </span><div className="flex flex-wrap gap-2">{document.tags.map(tag => (<span key={tag} className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 text-xs rounded-full font-medium">{tag}</span>))}</div></div>}
-              <div className="text-slate-500 dark:text-slate-500">Last Modified: <span className="font-medium text-slate-700 dark:text-slate-300">{document.lastModified}</span> by <span className="font-medium text-slate-700 dark:text-slate-300">{document.modifiedBy}</span></div>
+              <div><span className="font-semibold text-slate-600 dark:text-slate-400">Category: </span><CategoryBadge category={docProp.category} /></div>
+              {docProp.tags.length > 0 && <div className="flex items-center gap-2"><span className="font-semibold text-slate-600 dark:text-slate-400">Tags: </span><div className="flex flex-wrap gap-2">{docProp.tags.map(tag => (<span key={tag} className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 text-xs rounded-full font-medium">{tag}</span>))}</div></div>}
+              <div className="text-slate-500 dark:text-slate-500">Last Modified: <span className="font-medium text-slate-700 dark:text-slate-300">{docProp.lastModified}</span> by <span className="font-medium text-slate-700 dark:text-slate-300">{docProp.modifiedBy}</span></div>
           </div>
         </div>
 
@@ -399,8 +400,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
                 <div className="lg:col-span-1">
                   <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-4">Notes & Highlights</h3>
                   <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {(document.notes && document.notes.length > 0) ? (
-                          [...document.notes].reverse().map(note => (
+                      {(docProp.notes && docProp.notes.length > 0) ? (
+                          [...docProp.notes].reverse().map(note => (
                               <div key={note.id} className="p-3 bg-slate-100 dark:bg-slate-900/50 rounded-lg animate-fade-in">
                                   <blockquote className="border-l-2 border-slate-400 pl-3 text-sm text-slate-600 dark:text-slate-400 italic">"{note.highlightedText}"</blockquote>
                                   <p className="mt-2 text-slate-800 dark:text-slate-200">{note.content}</p>
@@ -429,7 +430,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ document, onCl
               </button>
               <button
                 onClick={handleSaveEdit}
-                disabled={editedContent === document.content}
+                disabled={editedContent === docProp.content}
                 className="bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md disabled:bg-primary-400 disabled:cursor-not-allowed"
               >
                 Save Changes

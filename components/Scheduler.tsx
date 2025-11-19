@@ -320,10 +320,15 @@ interface DependencyLine {
     path: string;
 }
 
+/** Represents the current user interaction with the Gantt chart (dragging, resizing, linking). */
 type InteractionState =
+    /** The user is dragging a task bar to move it horizontally. */
     | { type: 'move'; taskId: string; initialX: number; initialTask: Task; childTasks: Task[]; daysMoved: number; }
+    /** The user is resizing a task from its right edge. */
     | { type: 'resize-end'; taskId: string; initialX: number; initialTask: Task; }
+    /** The user is resizing a task from its left edge. */
     | { type: 'resize-start'; taskId: string; initialX: number; initialTask: Task; }
+    /** The user is creating a dependency link between two tasks. */
     | { type: 'link'; fromId: string; fromX: number; fromY: number; toX: number; toY: number; };
 
 
@@ -334,20 +339,30 @@ interface SchedulerProps {
     onUpdateTasks: (updatedTasks: Task[]) => void;
 }
 
+const GANTT_HEADER_HEIGHT = 58;
+
 export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, onUpdateTasks }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const ganttGridRef = useRef<HTMLDivElement>(null);
     const taskRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const dateHeaderRefs = useRef<(HTMLDivElement | null)[]>([]);
     const dayWidthRef = useRef<number>(60);
     
     const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
     const [todayMarkerLeft, setTodayMarkerLeft] = useState<number | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'gantt' | 'list'>('gantt');
+    const [zoomLevel, setZoomLevel] = useState<'day' | 'week' | 'month'>('day');
     const [statusFilter, setStatusFilter] = useState<'all' | Task['status']>('all');
     const [interaction, setInteraction] = useState<InteractionState | null>(null);
     
+    const dayWidth = useMemo(() => {
+        switch (zoomLevel) {
+            case 'month': return 25;
+            case 'week': return 40;
+            case 'day': default: return 60;
+        }
+    }, [zoomLevel]);
+
     const sortedTasks = useMemo(() => {
         return [...tasks].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     }, [tasks]);
@@ -397,7 +412,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
 
     }, [displayTasks, statusFilter]);
 
-    const { dateRange, gridStartDate, totalDays, todayOffset } = useMemo(() => {
+    const { dateRange, gridStartDate, totalDays, todayOffset, headerGroups } = useMemo(() => {
         if (tasks.length === 0) {
             const start = new Date();
             start.setDate(1);
@@ -408,15 +423,15 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                 range.push(new Date(current));
                 current.setDate(current.getDate() + 1);
             }
-            return { dateRange: range, gridStartDate: start, totalDays: range.length, todayOffset: new Date().getDate() - 1 };
+            return { dateRange: range, gridStartDate: start, totalDays: range.length, todayOffset: new Date().getDate() - 1, headerGroups: [] };
         }
         
         const allDates = tasks.flatMap(t => [new Date(t.start), new Date(t.end)]);
         const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
         const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
 
-        minDate.setDate(minDate.getDate() - 5);
-        maxDate.setDate(maxDate.getDate() + 10);
+        minDate.setDate(minDate.getDate() - 7);
+        maxDate.setDate(maxDate.getDate() + 14);
         
         const today = new Date();
         today.setHours(0,0,0,0);
@@ -434,28 +449,52 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
             i++;
         }
 
-        return { dateRange: range, gridStartDate: minDate, totalDays: range.length, todayOffset: currentTodayOffset };
-    }, [tasks]);
+        const groups: { label: string, colSpan: number }[] = [];
+        if (zoomLevel !== 'day') {
+            let currentGroupLabel = '';
+            let colSpan = 0;
+            range.forEach(date => {
+                let label = '';
+                if (zoomLevel === 'month') {
+                    label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                } else { // week
+                    const weekStart = new Date(date);
+                    weekStart.setDate(date.getDate() - date.getDay());
+                    label = `Week of ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                }
+
+                if (label !== currentGroupLabel) {
+                    if (colSpan > 0) groups.push({ label: currentGroupLabel, colSpan });
+                    currentGroupLabel = label;
+                    colSpan = 1;
+                } else {
+                    colSpan++;
+                }
+            });
+            groups.push({ label: currentGroupLabel, colSpan });
+        }
+
+        return { dateRange: range, gridStartDate: minDate, totalDays: range.length, todayOffset: currentTodayOffset, headerGroups: groups };
+    }, [tasks, zoomLevel]);
 
     const recalculatePositions = useCallback(() => {
+        dayWidthRef.current = dayWidth;
         if (!containerRef.current) return;
         const newLines: DependencyLine[] = [];
         const containerRect = containerRef.current.getBoundingClientRect();
-
-        const svgTopOffset = 58;
 
         displayTasks.forEach(task => {
             if (task.dependencies.length > 0) {
                 const dependentEl = taskRefs.current[task.id];
                 if (!dependentEl) return;
                 const dependentRect = dependentEl.getBoundingClientRect();
-                const dependentCenterY = (dependentRect.top - containerRect.top + dependentRect.height / 2) - svgTopOffset;
+                const dependentCenterY = (dependentRect.top - containerRect.top + dependentRect.height / 2) - GANTT_HEADER_HEIGHT;
 
                 task.dependencies.forEach(depId => {
                     const prerequisiteEl = taskRefs.current[depId];
                     if (!prerequisiteEl) return;
                     const prerequisiteRect = prerequisiteEl.getBoundingClientRect();
-                    const prerequisiteCenterY = (prerequisiteRect.top - containerRect.top + prerequisiteRect.height / 2) - svgTopOffset;
+                    const prerequisiteCenterY = (prerequisiteRect.top - containerRect.top + prerequisiteRect.height / 2) - GANTT_HEADER_HEIGHT;
 
                     const startX = prerequisiteRect.right - containerRect.left;
                     const startY = prerequisiteCenterY;
@@ -477,18 +516,13 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
         });
         setDependencyLines(newLines);
 
-        if (todayOffset >= 0 && dateHeaderRefs.current[todayOffset]) {
-            const todayEl = dateHeaderRefs.current[todayOffset];
-            if (todayEl) setTodayMarkerLeft(todayEl.offsetLeft + todayEl.offsetWidth / 2);
+        if (todayOffset >= 0) {
+            setTodayMarkerLeft(todayOffset * dayWidth + dayWidth / 2);
         } else {
             setTodayMarkerLeft(null);
         }
 
-        if (ganttGridRef.current) {
-            dayWidthRef.current = (ganttGridRef.current.scrollWidth - 250) / totalDays;
-        }
-
-    }, [displayTasks, todayOffset, totalDays]);
+    }, [displayTasks, todayOffset, dayWidth]);
     
     useEffect(() => {
         if (viewMode !== 'gantt') return;
@@ -499,7 +533,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
         return () => {
             if (container) observer.unobserve(container);
         };
-    }, [recalculatePositions, viewMode, tasks]);
+    }, [recalculatePositions, viewMode, tasks, zoomLevel]);
 
 
     const getChildrenRecursive = useCallback((taskId: string, allTasks: Task[]): Task[] => {
@@ -510,14 +544,14 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
             if (!interaction) return;
-            
-            const dx = e.clientX - interaction.initialX;
-            const daysMoved = Math.round(dx / dayWidthRef.current);
 
             switch (interaction.type) {
-                case 'move':
+                case 'move': {
+                    const dx = e.clientX - interaction.initialX;
+                    const daysMoved = Math.round(dx / dayWidthRef.current);
                     setInteraction({ ...interaction, daysMoved });
                     break;
+                }
                 case 'resize-end':
                 case 'resize-start':
                      setInteraction({ ...interaction, initialX: e.clientX }); // update initialX to prevent acceleration
@@ -528,7 +562,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                     setInteraction({
                         ...interaction,
                         toX: e.clientX - rect.left,
-                        toY: e.clientY - rect.top - 58
+                        toY: e.clientY - rect.top - GANTT_HEADER_HEIGHT
                     });
                      // Highlight target task
                     document.querySelectorAll('[data-task-id]').forEach(el => el.classList.remove('ring-2', 'ring-primary-500'));
@@ -544,29 +578,32 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
         const handleMouseUp = (e: MouseEvent) => {
             if (!interaction) return;
             const { type } = interaction;
-            const dx = e.clientX - interaction.initialX;
-            const daysMoved = Math.round(dx / dayWidthRef.current);
             
-            if (type === 'move') {
-                const { initialTask, childTasks } = interaction;
-                if (daysMoved !== 0) {
-                    const updatedParent = { ...initialTask, start: addDaysToDateString(initialTask.start, daysMoved), end: addDaysToDateString(initialTask.end, daysMoved) };
-                    const updatedChildren = childTasks.map(child => ({ ...child, start: addDaysToDateString(child.start, daysMoved), end: addDaysToDateString(child.end, daysMoved) }));
-                    onUpdateTasks([updatedParent, ...updatedChildren]);
+            if (type !== 'link') {
+                const dx = e.clientX - interaction.initialX;
+                const daysMoved = Math.round(dx / dayWidthRef.current);
+                
+                if (type === 'move') {
+                    const { initialTask, childTasks } = interaction;
+                    if (daysMoved !== 0) {
+                        const updatedParent = { ...initialTask, start: addDaysToDateString(initialTask.start, daysMoved), end: addDaysToDateString(initialTask.end, daysMoved) };
+                        const updatedChildren = childTasks.map(child => ({ ...child, start: addDaysToDateString(child.start, daysMoved), end: addDaysToDateString(child.end, daysMoved) }));
+                        onUpdateTasks([updatedParent, ...updatedChildren]);
+                    }
+                } else if (type === 'resize-end') {
+                    const { initialTask } = interaction;
+                    const newEnd = addDaysToDateString(initialTask.end, daysMoved);
+                    if (newEnd >= initialTask.start) {
+                        onUpdateTasks([{ ...initialTask, end: newEnd }]);
+                    }
+                } else if (type === 'resize-start') {
+                     const { initialTask } = interaction;
+                     const newStart = addDaysToDateString(initialTask.start, daysMoved);
+                     if (newStart <= initialTask.end) {
+                         onUpdateTasks([{...initialTask, start: newStart}]);
+                     }
                 }
-            } else if (type === 'resize-end') {
-                const { initialTask } = interaction;
-                const newEnd = addDaysToDateString(initialTask.end, daysMoved);
-                if (newEnd >= initialTask.start) {
-                    onUpdateTasks([{ ...initialTask, end: newEnd }]);
-                }
-            } else if (type === 'resize-start') {
-                 const { initialTask } = interaction;
-                 const newStart = addDaysToDateString(initialTask.start, daysMoved);
-                 if (newStart <= initialTask.end) {
-                     onUpdateTasks([{...initialTask, start: newStart}]);
-                 }
-            } else if (type === 'link') {
+            } else { // Handle 'link' case separately
                  document.querySelectorAll('[data-task-id]').forEach(el => el.classList.remove('ring-2', 'ring-primary-500'));
                  const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-task-id]');
                  const toId = targetEl?.getAttribute('data-task-id');
@@ -604,9 +641,9 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                 type: 'link',
                 fromId: task.id,
                 fromX: (rect.left + rect.width / 2) - containerRect.left,
-                fromY: (rect.top + rect.height / 2) - containerRect.top - 58, // 58px header height
+                fromY: (rect.top + rect.height / 2) - containerRect.top - GANTT_HEADER_HEIGHT,
                 toX: e.clientX - containerRect.left,
-                toY: e.clientY - containerRect.top - 58,
+                toY: e.clientY - containerRect.top - GANTT_HEADER_HEIGHT,
             });
         } else {
              const childTasks = type === 'move' ? getChildrenRecursive(task.id, tasks) : [];
@@ -614,22 +651,34 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
         }
     };
 
+    const GanttHeader = () => {
+        const isZoomed = zoomLevel !== 'day';
+        const gridRows = isZoomed ? 'grid-rows-2' : 'grid-rows-1';
+
+        return (
+            <div className={`grid sticky top-0 bg-white dark:bg-slate-800 z-30 ${gridRows}`} ref={ganttGridRef} style={{ gridTemplateColumns: `250px repeat(${totalDays}, ${dayWidth}px)` }}>
+                <div className="sticky left-0 bg-white dark:bg-slate-800 z-40 border-r border-b border-slate-200 dark:border-slate-700 p-2 font-semibold text-slate-700 dark:text-slate-200 flex items-center" style={{ gridRow: `1 / span ${isZoomed ? 2 : 1}` }}>Task</div>
+                {isZoomed && headerGroups.map((group, index) => (
+                    <div key={index} className="text-center border-b border-l border-slate-200 dark:border-slate-700 p-1 text-xs font-semibold text-slate-600 dark:text-slate-300" style={{ gridColumn: `auto / span ${group.colSpan}` }}>
+                        {group.label}
+                    </div>
+                ))}
+                {dateRange.map((date, index) => (
+                    <div key={index} className="text-center border-b border-l border-slate-200 dark:border-slate-700 pt-1 text-xs text-slate-500 dark:text-slate-400" style={{ gridRow: isZoomed ? 2 : 1 }}>
+                        <div className="font-semibold">{date.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}</div>
+                        <div>{date.getDate()}</div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     const renderGanttView = () => (
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md overflow-x-auto" >
               <div className="relative min-w-max" ref={containerRef}>
-                {/* Timeline Header */}
-                <div className="grid sticky top-0 bg-white dark:bg-slate-800 z-30" ref={ganttGridRef} style={{ gridTemplateColumns: `250px repeat(${totalDays}, minmax(60px, 1fr))` }}>
-                    <div className="sticky left-0 bg-white dark:bg-slate-800 z-40 border-r border-b border-slate-200 dark:border-slate-700 p-2 font-semibold text-slate-700 dark:text-slate-200">Task</div>
-                    {dateRange.map((date, index) => (
-                        <div key={index} ref={el => { dateHeaderRefs.current[index] = el; }} className="text-center border-b border-l border-slate-200 dark:border-slate-700 p-2 text-xs text-slate-500 dark:text-slate-400">
-                            <div className="font-semibold">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                            <div>{formatDate(date)}</div>
-                        </div>
-                    ))}
-                </div>
-
+                <GanttHeader />
                 {/* Task Rows & Grid Background */}
-                <div className="grid" style={{ gridTemplateColumns: `250px repeat(${totalDays}, minmax(60px, 1fr))` }}>
+                <div className="grid" style={{ gridTemplateColumns: `250px repeat(${totalDays}, ${dayWidth}px)` }}>
                     {displayTasks.map((task, rowIndex) => {
                         const taskStart = new Date(task.start);
                         const taskEnd = new Date(task.end);
@@ -688,8 +737,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                         <div className="absolute top-0 h-14 p-2 z-20 pointer-events-none" style={{
                             left: 250 + (daysBetween(gridStartDate, new Date(interaction.initialTask.start)) + interaction.daysMoved) * dayWidthRef.current,
                             width: (daysBetween(new Date(interaction.initialTask.start), new Date(interaction.initialTask.end)) + 1) * dayWidthRef.current,
-                            gridRow: displayTasks.findIndex(t => t.id === interaction.taskId) + 1,
-                            top: 58 + (displayTasks.findIndex(t => t.id === interaction.taskId)) * 56,
+                            top: GANTT_HEADER_HEIGHT + (displayTasks.findIndex(t => t.id === interaction.taskId)) * 56,
                         }}>
                              <div className="w-full h-10 rounded-lg bg-primary-500/30 border-2 border-dashed border-primary-500"></div>
                         </div>
@@ -702,11 +750,14 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                         style={{ left: `${250 + todayMarkerLeft}px` }}
                         title={`Today, ${formatDate(new Date())}`}
                     >
-                        <div className="sticky top-0 -ml-2 mt-[52px] w-5 h-5 border-2 border-red-500 bg-white dark:bg-slate-800 rounded-full shadow-md"></div>
+                         <div className="sticky top-0 -ml-[9px] mt-[48px] w-5 h-5 border-2 border-red-500 bg-white dark:bg-slate-800 rounded-full shadow-md"></div>
                     </div>
                 )}
                 
-                <svg className="absolute top-[58px] left-0 w-full h-full pointer-events-none z-20">
+                <svg
+                  className="absolute left-0 w-full h-full pointer-events-none z-20"
+                  style={{ top: `${GANTT_HEADER_HEIGHT}px` }}
+                >
                     <defs>
                         <marker id="arrowhead" markerWidth="5" markerHeight="3.5" refX="4" refY="1.75" orient="auto">
                             <polygon points="0 0, 5 1.75, 0 3.5" fill="#94a3b8" />
@@ -812,15 +863,30 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
         </div>
     );
 
+    const ViewToggleButton: React.FC<{ label: 'Gantt' | 'List', current: typeof viewMode, onClick: () => void }> = ({ label, current, onClick }) => (
+         <button onClick={onClick} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${current === label.toLowerCase() ? 'bg-white dark:bg-slate-800 shadow-sm text-primary-600' : 'text-slate-600 dark:text-slate-300'}`}>{label}</button>
+    );
+
+    const ZoomButton: React.FC<{ label: 'Day' | 'Week' | 'Month', current: typeof zoomLevel, onClick: () => void }> = ({ label, current, onClick }) => (
+         <button onClick={onClick} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${current === label.toLowerCase() ? 'bg-white dark:bg-slate-800 shadow-sm text-primary-600' : 'text-slate-600 dark:text-slate-300'}`}>{label}</button>
+    );
+
     return (
         <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Scheduler</h1>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <div className="bg-slate-100 dark:bg-slate-700 p-1 rounded-lg flex items-center">
-                        <button onClick={() => setViewMode('gantt')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'gantt' ? 'bg-white dark:bg-slate-800 shadow-sm text-primary-600' : 'text-slate-600 dark:text-slate-300'}`}>Gantt</button>
-                        <button onClick={() => setViewMode('list')} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${viewMode === 'list' ? 'bg-white dark:bg-slate-800 shadow-sm text-primary-600' : 'text-slate-600 dark:text-slate-300'}`}>List</button>
+                       <ViewToggleButton label="Gantt" current={viewMode} onClick={() => setViewMode('gantt')} />
+                       <ViewToggleButton label="List" current={viewMode} onClick={() => setViewMode('list')} />
                     </div>
+                     {viewMode === 'gantt' && (
+                        <div className="bg-slate-100 dark:bg-slate-700 p-1 rounded-lg flex items-center">
+                            <ZoomButton label="Day" current={zoomLevel} onClick={() => setZoomLevel('day')} />
+                            <ZoomButton label="Week" current={zoomLevel} onClick={() => setZoomLevel('week')} />
+                            <ZoomButton label="Month" current={zoomLevel} onClick={() => setZoomLevel('month')} />
+                        </div>
+                    )}
                     <button 
                         onClick={() => setIsModalOpen(true)}
                         className="flex items-center gap-2 bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md"
