@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { View, User } from '../types';
-import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon, MagicIcon, CalendarCheckIcon, TicketIcon, ClipboardDocumentListIcon } from './icons';
+import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon, MagicIcon, CalendarCheckIcon, TicketIcon } from './icons';
 
 interface SidebarProps {
   view: View | null;
@@ -37,8 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user,
   const navItems = [
     { id: View.Dashboard, label: 'Dashboard', icon: <DashboardIcon className="w-6 h-6" /> },
     { id: View.Documents, label: 'Documents', icon: <DocumentIcon className="w-6 h-6" /> },
-    { id: View.SopLibrary, label: 'SOP Library', icon: <ClipboardDocumentListIcon className="w-6 h-6" /> },
-    { id: View.SopTemplates, label: 'SOP Generator', icon: <MagicIcon className="w-6 h-6" /> },
+    { id: View.SopTemplates, label: 'SOP Templates', icon: <MagicIcon className="w-6 h-6" /> },
     { id: View.Inspections, label: 'Inspections', icon: <ClipboardCheckIcon className="w-6 h-6" /> },
     { id: View.Incidents, label: 'Incident Tickets', icon: <TicketIcon className="w-6 h-6" /> },
     { id: View.Team, label: 'Team Access', icon: <TeamIcon className="w-6 h-6" /> },

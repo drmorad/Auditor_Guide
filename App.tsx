@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -13,14 +15,15 @@ import { InspectionManager } from './components/InspectionManager';
 import { Reporting } from './components/Reporting';
 import { Scheduler } from './components/Scheduler';
 import { AppCatalog } from './components/AppCatalog';
-import { Login } from './components/Login';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { ChatAssistant } from './components/ChatAssistant';
 import { Header } from './components/Header';
 import { getChatResponse } from './services/geminiService';
-import { View, User, Document, AuditLogEntry, Sop, SopTemplate, Hotel, InspectionRecord, ChatMessage, InspectionTemplate as InspectionTemplateType, Task } from './types';
-import { MOCK_USERS, MOCK_DOCUMENTS, MOCK_HOTELS, MOCK_INSPECTION_RECORDS, MOCK_INSPECTION_TEMPLATES, MOCK_TASKS } from './mockData';
+import { View, User, Document, AuditLogEntry, Sop, SopTemplate, Hotel, InspectionRecord, ChatMessage, InspectionTemplate as InspectionTemplateType, Task, Incident } from './types';
+import { MOCK_USERS, MOCK_DOCUMENTS, MOCK_HOTELS, MOCK_INSPECTION_RECORDS, MOCK_INSPECTION_TEMPLATES, MOCK_TASKS, MOCK_INCIDENTS } from './mockData';
 import { InspectionPlanner } from './components/InspectionPlanner';
+import { IncidentManager } from './components/IncidentManager';
+import { SopLibrary } from './components/SopLibrary';
 
 const APP_STORAGE_PREFIX = 'auditorsguide_';
 
@@ -47,8 +50,14 @@ const setStoredItem = <T,>(key: string, value: T) => {
 
 const App: React.FC = () => {
   const [view, setView] = useState<View | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>(() => getStoredItem('users', MOCK_USERS));
+  
+  // Initialize currentUser with the first user (Admin) to bypass login screen
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+      const storedUsers = getStoredItem('users', MOCK_USERS);
+      return storedUsers.length > 0 ? storedUsers[0] : null;
+  });
+
   const [documents, setDocuments] = useState<Document[]>(() => getStoredItem('documents', MOCK_DOCUMENTS));
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
     const storedLogs = getStoredItem<AuditLogEntry[]>('auditLogs', []);
@@ -61,16 +70,20 @@ const App: React.FC = () => {
   const [inspectionRecords, setInspectionRecords] = useState<InspectionRecord[]>(() => getStoredItem('inspectionRecords', MOCK_INSPECTION_RECORDS));
   const [inspectionTemplates, setInspectionTemplates] = useState<InspectionTemplateType[]>(() => getStoredItem('inspectionTemplates', MOCK_INSPECTION_TEMPLATES));
   const [tasks, setTasks] = useState<Task[]>(() => getStoredItem('tasks', MOCK_TASKS));
+  const [incidents, setIncidents] = useState<Incident[]>(() => getStoredItem('incidents', MOCK_INCIDENTS));
+  const [departments, setDepartments] = useState<string[]>(() => getStoredItem('departments', ['Kitchen', 'Housekeeping', 'Maintenance', 'Front Office', 'Security', 'Food & Beverage', 'Human Resources', 'Sales & Marketing', 'Spa & Recreation']));
+
   const [sopInitialData, setSopInitialData] = useState<any>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => getStoredItem('theme', 'light'));
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDriveConnected, setIsDriveConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // --- Data Persistence Effects ---
   useEffect(() => { setStoredItem('users', users); }, [users]);
@@ -80,6 +93,8 @@ const App: React.FC = () => {
   useEffect(() => { setStoredItem('inspectionRecords', inspectionRecords); }, [inspectionRecords]);
   useEffect(() => { setStoredItem('inspectionTemplates', inspectionTemplates); }, [inspectionTemplates]);
   useEffect(() => { setStoredItem('tasks', tasks); }, [tasks]);
+  useEffect(() => { setStoredItem('incidents', incidents); }, [incidents]);
+  useEffect(() => { setStoredItem('departments', departments); }, [departments]);
   useEffect(() => { setStoredItem('theme', theme); }, [theme]);
 
   const addAuditLog = useCallback((action: string, details: string) => {
@@ -96,12 +111,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (currentUser) {
-      setView(View.Dashboard);
-      addAuditLog('User Logged In', `User ${currentUser.name} logged in.`);
+      // Only set to Dashboard if we are currently viewing nothing (initial load)
+      // or if we were logged out.
+      if (view === null) {
+          setView(View.Dashboard);
+      }
     } else {
-      setView(null); // Show AppCatalog if not logged in
+      setView(null); // Show AppCatalog if logged out
     }
-  }, [currentUser, addAuditLog]);
+  }, [currentUser]); // Removed addAuditLog and view from dependency to prevent loops
   
   useEffect(() => {
     if (theme === 'dark') {
@@ -116,47 +134,19 @@ const App: React.FC = () => {
     addAuditLog('Theme Changed', `Switched to ${theme === 'light' ? 'dark' : 'light'} mode.`);
   };
 
-  const handleLogin = (email: string, password: string): boolean => {
-    const user = users.find(u => u.email === email && u.password === password && u.status !== 'Pending');
-    if (user) {
-      setCurrentUser(user);
-      setLoginError(null);
-      // If user was pending, set them to active upon first login
-      if (user.status === 'Pending') {
-          const updatedUsers = users.map(u => u.id === user.id ? { ...u, status: 'Active' as const } : u);
-          setUsers(updatedUsers);
-      }
-      return true;
-    }
-    setLoginError('Invalid credentials or account not active.');
-    return false;
-  };
-  
-  const handleRegister = (name: string, email: string, password: string): boolean => {
-    if (users.some(u => u.email === email)) {
-      setLoginError('An account with this email already exists.');
-      return false;
-    }
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      name,
-      email,
-      password,
-      avatar: `https://i.pravatar.cc/150?u=${email}`,
-      role: 'Admin',
-      status: 'Active',
-      organizationId: 'org-1',
-      hotelIds: [],
-    };
-    setUsers([...users, newUser]);
-    setCurrentUser(newUser);
-    setLoginError(null);
-    return true;
-  };
-  
   const handleLogout = () => {
     addAuditLog('User Logged Out', `User ${currentUser?.name} logged out.`);
     setCurrentUser(null);
+  };
+
+  const handleConnectDrive = () => {
+    setIsConnecting(true);
+    addAuditLog('Action Initiated', `Connecting to Google Drive.`);
+    setTimeout(() => {
+        setIsDriveConnected(true);
+        setIsConnecting(false);
+        addAuditLog('Integration Enabled', `Successfully connected to Google Drive.`);
+    }, 1500);
   };
   
   const handleSopCreated = (sop: Sop) => {
@@ -224,6 +214,18 @@ const App: React.FC = () => {
       })));
       addAuditLog('Hotel Removed', `Removed hotel: ${hotelToDelete.name}.`);
     }
+  };
+
+  const handleAddDepartment = (name: string) => {
+    if (!departments.includes(name)) {
+        setDepartments(prev => [...prev, name].sort());
+        addAuditLog('Department Added', `Added new department: "${name}"`);
+    }
+  };
+
+  const handleDeleteDepartment = (name: string) => {
+    setDepartments(prev => prev.filter(d => d !== name));
+    addAuditLog('Department Removed', `Removed department: "${name}"`);
   };
 
   const handleCreateInspectionTemplate = (template: InspectionTemplateType) => {
@@ -341,25 +343,57 @@ const App: React.FC = () => {
       }
   };
 
+  const handleGetStarted = () => {
+      // Auto-login as default admin if "Get Started" is clicked and no user is active
+      if (!currentUser) {
+          const defaultAdmin = users.find(u => u.role === 'Admin') || users[0];
+          setCurrentUser(defaultAdmin);
+          addAuditLog('User Logged In', `User ${defaultAdmin.name} logged in via Quick Start.`);
+      }
+      setView(View.Dashboard);
+  };
+
 
   const renderView = () => {
+    // If not logged in and not in Catalog view (null), show Catalog
     if (!currentUser) {
-      return (
-        <div className="flex-grow bg-slate-100 dark:bg-slate-900">
-          <Login onLogin={handleLogin} onRegister={handleRegister} error={loginError} onBack={() => setView(null)} />
-        </div>
-      );
+        return <AppCatalog onGetStarted={handleGetStarted} />;
     }
 
     const selectedHotel = selectedHotelId ? hotels.find(h => h.id === selectedHotelId) : null;
 
     switch (view) {
       case View.Dashboard:
-        return <Dashboard hotel={selectedHotel} auditLogs={auditLogs} users={users} />;
+        return <Dashboard 
+                  hotel={selectedHotel} 
+                  auditLogs={auditLogs} 
+                  users={users} 
+                  inspectionRecords={inspectionRecords}
+                  incidents={incidents}
+                  tasks={tasks}
+                />;
       case View.Documents:
-        return <DocumentManager setView={setView} addAuditLog={addAuditLog} documents={documents} setDocuments={setDocuments} onSopCreated={handleSopCreated} />;
+        return <DocumentManager 
+                  setView={setView} 
+                  addAuditLog={addAuditLog} 
+                  documents={documents} 
+                  setDocuments={setDocuments} 
+                  onSopCreated={handleSopCreated}
+                  isDriveConnected={isDriveConnected}
+                  isConnecting={isConnecting}
+                  onConnectDrive={handleConnectDrive}
+                />;
+      case View.SopLibrary:
+        return <SopLibrary 
+            documents={documents} 
+            setDocuments={setDocuments} 
+            setView={setView} 
+            addAuditLog={addAuditLog} 
+        />;
       case View.Inspections:
         return <InspectionManager records={inspectionRecords} setRecords={setInspectionRecords} hotels={hotels} templates={inspectionTemplates} currentUser={currentUser} addAuditLog={addAuditLog} />;
+      case View.Incidents:
+        return <IncidentManager incidents={incidents} setIncidents={setIncidents} currentUser={currentUser} users={users} hotels={hotels} addAuditLog={addAuditLog} />;
       case View.Team:
         return <TeamManager currentUser={currentUser} users={users} setView={setView} onViewProfile={(user) => { setProfileUser(user); setView(View.UserProfile); }} />;
       case View.AuditLog:
@@ -371,7 +405,25 @@ const App: React.FC = () => {
       case View.SopTemplates:
         return <SopTemplates setView={setView} onSelectTemplate={handleSelectSopTemplate} onStartFromScratch={() => { setSopInitialData(null); setView(View.SopGenerator); }} />;
       case View.AdminPanel:
-        return <AdminPanel users={users} setUsers={setUsers} onSendInvite={handleInviteUser} addAuditLog={addAuditLog} currentUser={currentUser} hotels={hotels} onAddHotel={handleAddHotel} onDeleteHotel={handleDeleteHotel} onUpdateHotel={handleUpdateHotel} inspectionTemplates={inspectionTemplates} onCreateTemplate={handleCreateInspectionTemplate} />;
+        return <AdminPanel 
+            users={users} 
+            setUsers={setUsers} 
+            onSendInvite={handleInviteUser} 
+            addAuditLog={addAuditLog} 
+            currentUser={currentUser} 
+            hotels={hotels} 
+            onAddHotel={handleAddHotel} 
+            onDeleteHotel={handleDeleteHotel} 
+            onUpdateHotel={handleUpdateHotel} 
+            inspectionTemplates={inspectionTemplates} 
+            onCreateTemplate={handleCreateInspectionTemplate}
+            departments={departments}
+            onAddDepartment={handleAddDepartment}
+            onDeleteDepartment={handleDeleteDepartment}
+            isDriveConnected={isDriveConnected}
+            isConnecting={isConnecting}
+            onConnectDrive={handleConnectDrive}
+        />;
       case View.UserProfile:
         return profileUser ? <UserProfile user={profileUser} allHotels={hotels} auditLogs={auditLogs} onBack={() => setView(View.Team)} /> : null;
       case View.Reporting:
@@ -381,12 +433,19 @@ const App: React.FC = () => {
        case View.Planner:
         return <InspectionPlanner hotels={hotels} templates={inspectionTemplates} users={users} />;
       default:
-        return <Dashboard hotel={selectedHotel} auditLogs={auditLogs} users={users} />;
+        return <Dashboard 
+                  hotel={selectedHotel} 
+                  auditLogs={auditLogs} 
+                  users={users} 
+                  inspectionRecords={inspectionRecords}
+                  incidents={incidents}
+                  tasks={tasks}
+                />;
     }
   };
 
   if (view === null) {
-      return <AppCatalog onGetStarted={() => setView(View.Dashboard)} />;
+      return <AppCatalog onGetStarted={handleGetStarted} />;
   }
 
   return (

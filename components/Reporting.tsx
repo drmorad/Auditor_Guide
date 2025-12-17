@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { InspectionRecord, Hotel } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { PrinterIcon } from './icons';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ReportingProps {
   records: InspectionRecord[];
@@ -24,13 +27,32 @@ export const Reporting: React.FC<ReportingProps> = ({ records, hotels }) => {
   const [statusFilter, setStatusFilter] = useState<InspectionRecord['status'] | 'all'>('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [report, setReport] = useState<any>(null);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
 
   const departments = useMemo(() => {
     const allDepartments = records.map(r => r.department);
     return [...new Set(allDepartments)].sort();
   }, [records]);
+
+  const setDateRangePreset = (preset: 'day' | 'week' | 'month') => {
+    const end = new Date();
+    let start = new Date();
+    if (preset === 'day') {
+        // start is already today
+    } else if (preset === 'week') {
+        // Monday as start of the week
+        const day = end.getDay();
+        const diff = end.getDate() - day + (day === 0 ? -6 : 1);
+        start = new Date(end.setDate(diff));
+    } else if (preset === 'month') {
+        start.setDate(1);
+    }
+    setStartDate(start.toISOString().split('T')[0]);
+    setEndDate(end.toISOString().split('T')[0]);
+  };
   
   const handleGenerateReport = () => {
+    setSelectedRecordIds(new Set()); // Reset selections on new report
     const filteredRecords = records.filter(rec => {
       const recordDate = new Date(rec.date);
       const start = new Date(startDate);
@@ -42,7 +64,7 @@ export const Reporting: React.FC<ReportingProps> = ({ records, hotels }) => {
       const isBeforeEnd = recordDate <= end;
       const isCorrectHotel = hotelId === 'all' || hotels.find(h => h.id === hotelId)?.name === rec.hotelName;
       const isCorrectStatus = statusFilter === 'all' || rec.status === statusFilter;
-      const isCorrectDepartment = departmentFilter === 'all' || rec.department === rec.department;
+      const isCorrectDepartment = departmentFilter === 'all' || rec.department === departmentFilter;
       return isAfterStart && isBeforeEnd && isCorrectHotel && isCorrectStatus && isCorrectDepartment;
     });
 
@@ -54,6 +76,7 @@ export const Reporting: React.FC<ReportingProps> = ({ records, hotels }) => {
     const completedRecords = filteredRecords.filter(rec => rec.status === 'Completed');
 
     const reportData: any = {
+      filteredRecords, // Pass raw filtered records for PDF and selection table
       totalInspections: filteredRecords.length,
       completedCount: completedRecords.length,
       inProgressCount: filteredRecords.filter(r => r.status === 'In Progress').length,
@@ -117,8 +140,88 @@ export const Reporting: React.FC<ReportingProps> = ({ records, hotels }) => {
     setReport(reportData);
   };
   
-  const handlePrint = () => {
-    window.print();
+  const handleSelectRecord = (recordId: string) => {
+    setSelectedRecordIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(recordId)) newSet.delete(recordId);
+        else newSet.add(recordId);
+        return newSet;
+    });
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked && report?.filteredRecords) {
+        setSelectedRecordIds(new Set(report.filteredRecords.map((r: InspectionRecord) => r.id)));
+    } else {
+        setSelectedRecordIds(new Set());
+    }
+  };
+
+  const handleExportPDF = () => {
+    if (!report || report.isEmpty || selectedRecordIds.size === 0) return;
+
+    const selectedRecords = report.filteredRecords.filter((r: InspectionRecord) => selectedRecordIds.has(r.id));
+    
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(22);
+    doc.text("Compliance Audit Report (Selected)", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 28);
+    doc.text(`Period: ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`, 14, 34);
+
+    // Recalculate summary for selected items
+    const completed = selectedRecords.filter(r => r.status === 'Completed');
+    const inProgress = selectedRecords.filter(r => r.status === 'In Progress');
+    const overdue = selectedRecords.filter(r => r.status === 'Overdue');
+    let avgCompliance = 'N/A';
+    if (completed.length > 0) {
+        const totalItems = completed.reduce((sum, rec) => sum + rec.results.length, 0);
+        const totalPassed = completed.reduce((sum, rec) => sum + rec.results.filter(r => r.status === 'pass').length, 0);
+        avgCompliance = totalItems > 0 ? `${Math.round((totalPassed / totalItems) * 100)}%` : '0%';
+    }
+
+    // Summary Section
+    doc.setFontSize(14);
+    doc.text("Executive Summary (Selected Items)", 14, 45);
+    
+    autoTable(doc, {
+        startY: 50,
+        head: [['Metric', 'Value']],
+        body: [
+            ['Total Selected Inspections', selectedRecords.length],
+            ['Completed', completed.length],
+            ['In Progress', inProgress.length],
+            ['Overdue', overdue.length],
+            ['Compliance Score of Selected', avgCompliance],
+        ],
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] } // primary-600
+    });
+
+    // Detailed Records Table
+    const lastY = (doc as any).lastAutoTable.finalY + 15;
+    doc.setFontSize(14);
+    doc.text("Detailed Log (Selected Items)", 14, lastY);
+
+    autoTable(doc, {
+        startY: lastY + 5,
+        head: [['Date', 'Template', 'Hotel', 'Auditor', 'Score', 'Status']],
+        body: selectedRecords.map(rec => [
+            rec.date,
+            rec.templateName,
+            rec.hotelName,
+            rec.auditor,
+            rec.status === 'Completed' ? `${rec.complianceScore}%` : '-',
+            rec.status
+        ]),
+        theme: 'grid',
+        headStyles: { fillColor: [51, 65, 85] }, // slate-700
+        styles: { fontSize: 8 }
+    });
+
+    doc.save(`audit-report-selected-${startDate}-${endDate}.pdf`);
   };
 
 
@@ -128,6 +231,12 @@ export const Reporting: React.FC<ReportingProps> = ({ records, hotels }) => {
       
       {/* Filters Section */}
       <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md space-y-4 no-print">
+        <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Quick Filters:</span>
+            <button onClick={() => setDateRangePreset('day')} className="text-xs font-semibold px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600">Today</button>
+            <button onClick={() => setDateRangePreset('week')} className="text-xs font-semibold px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600">This Week</button>
+            <button onClick={() => setDateRangePreset('month')} className="text-xs font-semibold px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600">This Month</button>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             {/* Date Filters */}
             <div className="lg:col-span-2 xl:col-span-2 grid grid-cols-2 gap-4">
@@ -189,9 +298,56 @@ export const Reporting: React.FC<ReportingProps> = ({ records, hotels }) => {
                                 For period: {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
                             </p>
                         </div>
-                        <button onClick={handlePrint} className="no-print mt-4 sm:mt-0 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
-                            Print Report
-                        </button>
+                        <div className="mt-4 sm:mt-0 flex gap-2">
+                             <button onClick={handleExportPDF} disabled={selectedRecordIds.size === 0} className="no-print bg-slate-800 text-white font-semibold py-2 px-4 rounded-lg hover:bg-slate-900 transition-colors flex items-center gap-2 disabled:bg-slate-400 disabled:cursor-not-allowed">
+                                <PrinterIcon className="w-4 h-4" />
+                                Export Selected ({selectedRecordIds.size}) to PDF
+                            </button>
+                            <button onClick={() => window.print()} className="no-print bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                                Quick Print
+                            </button>
+                        </div>
+                    </div>
+
+                     {/* Selectable Table */}
+                     <div className="no-print">
+                        <h3 className="text-lg font-semibold mb-4 text-slate-700 dark:text-slate-300">Filtered Inspections ({report.filteredRecords.length})</h3>
+                        <div className="max-h-96 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-50 dark:bg-slate-700/50 sticky top-0">
+                                    <tr>
+                                        <th className="p-3">
+                                            <input type="checkbox"
+                                                className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                onChange={handleSelectAll}
+                                                checked={selectedRecordIds.size > 0 && selectedRecordIds.size === report.filteredRecords.length}
+                                            />
+                                        </th>
+                                        <th className="p-3 font-semibold text-slate-500 dark:text-slate-400">Date</th>
+                                        <th className="p-3 font-semibold text-slate-500 dark:text-slate-400">Template</th>
+                                        <th className="p-3 font-semibold text-slate-500 dark:text-slate-400">Hotel</th>
+                                        <th className="p-3 font-semibold text-slate-500 dark:text-slate-400">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                                    {report.filteredRecords.map((rec: InspectionRecord) => (
+                                        <tr key={rec.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                                            <td className="p-3">
+                                                <input type="checkbox"
+                                                    className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                    checked={selectedRecordIds.has(rec.id)}
+                                                    onChange={() => handleSelectRecord(rec.id)}
+                                                />
+                                            </td>
+                                            <td className="p-3 text-slate-600 dark:text-slate-300">{rec.date}</td>
+                                            <td className="p-3 font-medium text-slate-800 dark:text-slate-200">{rec.templateName}</td>
+                                            <td className="p-3 text-slate-600 dark:text-slate-300">{rec.hotelName}</td>
+                                            <td className="p-3 font-semibold">{rec.status === 'Completed' ? `${rec.complianceScore}%` : 'N/A'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* Summary Section */}

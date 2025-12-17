@@ -8,6 +8,7 @@ const urlsToCache = [
   'mockData.ts',
   'services/geminiService.ts',
   'services/googleDriveService.ts',
+  'services/googleDrivePickerService.ts',
   'components/AdminPanel.tsx',
   'components/AppCatalog.tsx',
   'components/AuditLog.tsx',
@@ -65,8 +66,8 @@ self.addEventListener('fetch', event => {
 
         return fetch(fetchRequest).then(
           response => {
-            // Check if we received a valid response
-            if(!response || response.status !== 200 || response.type !== 'basic') {
+            // Check if we received a valid response. Allow 'cors' for CDN resources.
+            if(!response || response.status !== 200 || !['basic', 'cors'].includes(response.type)) {
               return response;
             }
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Hotel, View } from '../types';
 import { SunIcon, MoonIcon, ChevronDownIcon, CheckIcon, BuildingOfficeIcon } from './icons';
@@ -21,12 +22,14 @@ const VIEW_TITLES: Record<View, string> = {
   [View.AuditLog]: 'Audit Log',
   [View.Settings]: 'Settings',
   [View.SopGenerator]: 'AI SOP Generator',
-  [View.SopTemplates]: 'SOP Templates',
+  [View.SopTemplates]: 'SOP Generator',
+  [View.SopLibrary]: 'SOP Library',
   [View.AdminPanel]: 'Admin Panel',
   [View.UserProfile]: 'User Profile',
   [View.Reporting]: 'Reporting',
   [View.Scheduler]: 'Scheduler',
   [View.Planner]: 'Inspection Planner',
+  [View.Incidents]: 'Incident Tickets',
 };
 
 export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHotelId, onSelectHotel, theme, onToggleTheme, onToggleSidebar }) => {

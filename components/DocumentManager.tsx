@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo } from 'react';
 import { Document, View, Sop } from '../types';
 import { MagicIcon, SearchIcon, EditIcon, UploadIcon } from './icons';
@@ -6,6 +7,7 @@ import { UploadPreviewModal } from './UploadPreviewModal';
 import { DocumentPreview } from './DocumentPreview';
 import { uploadFile } from '../services/googleDriveService';
 import { generateSopFromDocument } from '../services/geminiService';
+import { pickFile } from '../services/googleDrivePickerService';
 
 const CategoryBadge: React.FC<{ category: Document['category'] }> = ({ category }) => {
   const colors = {
@@ -23,18 +25,19 @@ interface DocumentManagerProps {
   documents: Document[];
   setDocuments: React.Dispatch<React.SetStateAction<Document[]>>;
   onSopCreated: (sop: Sop) => void;
+  isDriveConnected: boolean;
+  isConnecting: boolean;
+  onConnectDrive: () => void;
 }
 
-export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments, onSopCreated }) => {
+export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments, onSopCreated, isDriveConnected, isConnecting, onConnectDrive }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'All' | Document['category']>('All');
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [previewingDocument, setPreviewingDocument] = useState<Document | null>(null);
-  const [uploadingDocument, setUploadingDocument] = useState<{ file: File; name: string; content: string; type: string; } | null>(null);
+  const [uploadingDocument, setUploadingDocument] = useState<{ file: File | null; name: string; content: string; type: string; } | null>(null);
   const [isSavingUpload, setIsSavingUpload] = useState(false);
-  const [isDriveConnected, setIsDriveConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const allTags = useMemo(() => {
@@ -118,6 +121,22 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
+  
+  const handleImportFromDrive = async () => {
+    try {
+      addAuditLog('Action Initiated', 'Importing file from Google Drive.');
+      const fileData = await pickFile();
+      setUploadingDocument({
+        file: null, // No real file object for imports
+        name: fileData.name,
+        content: fileData.content,
+        type: fileData.mimeType,
+      });
+    } catch (error) {
+      console.error("Drive import failed", error);
+      // In a real app, show an error toast to the user
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -158,44 +177,48 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
   };
 
   const handleSaveUpload = async (details: { name: string; category: Document['category']; tags: string[] }) => {
-    if (!uploadingDocument?.file) return;
+    if (!uploadingDocument) return;
 
     setIsSavingUpload(true);
     try {
-        const { embedLink } = await uploadFile(uploadingDocument.file);
-        
-        const newDocument: Document = {
-            id: new Date().toISOString(),
-            name: details.name,
-            category: details.category,
-            tags: details.tags,
-            embedLink,
-            type: uploadingDocument.type,
-            lastModified: new Date().toISOString().split('T')[0],
-            modifiedBy: 'Current User',
-            notes: [],
-            organizationId: documents[0]?.organizationId || '', // Use the org ID from existing documents
-        };
-
-        setDocuments(prevDocs => [newDocument, ...prevDocs]);
-        addAuditLog('Document Uploaded', `File: "${details.name}" to Google Drive`);
-        setUploadingDocument(null);
+      if (uploadingDocument.file) { // It's a local upload, send to Drive
+          const { embedLink } = await uploadFile(uploadingDocument.file);
+          const newDocument: Document = {
+              id: new Date().toISOString(),
+              name: details.name,
+              category: details.category,
+              tags: details.tags,
+              embedLink,
+              type: uploadingDocument.type,
+              lastModified: new Date().toISOString().split('T')[0],
+              modifiedBy: 'Current User',
+              notes: [],
+              organizationId: documents[0]?.organizationId || '',
+          };
+          setDocuments(prevDocs => [newDocument, ...prevDocs]);
+          addAuditLog('Document Uploaded', `File: "${details.name}" to Google Drive`);
+      } else { // It's a drive import, save its content directly
+          const newDocument: Document = {
+              id: new Date().toISOString(),
+              name: details.name,
+              category: details.category,
+              tags: details.tags,
+              content: uploadingDocument.content,
+              type: uploadingDocument.type,
+              lastModified: new Date().toISOString().split('T')[0],
+              modifiedBy: 'Current User',
+              notes: [],
+              organizationId: documents[0]?.organizationId || '',
+          };
+          setDocuments(prevDocs => [newDocument, ...prevDocs]);
+          addAuditLog('Document Imported', `Imported from Drive: "${details.name}"`);
+      }
+      setUploadingDocument(null);
     } catch (error) {
-        console.error("Upload failed", error);
-        // Here you would show an error message to the user
+        console.error("Save/Upload failed", error);
     } finally {
         setIsSavingUpload(false);
     }
-  };
-
-  const handleConnectDrive = () => {
-    setIsConnecting(true);
-    addAuditLog('Action Initiated', `Connecting to Google Drive.`);
-    setTimeout(() => {
-        setIsDriveConnected(true);
-        setIsConnecting(false);
-        addAuditLog('Integration Enabled', `Successfully connected to Google Drive.`);
-    }, 1500);
   };
 
   const renderModals = () => (
@@ -235,42 +258,49 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Document Hub</h1>
           <div className="flex flex-wrap gap-2">
-              {isDriveConnected ? (
-                <>
-                  <input 
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    aria-hidden="true"
-                    accept="image/png, image/jpeg, .pdf, .txt, text/plain"
-                  />
-                  <button 
+              <input 
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                aria-hidden="true"
+                accept="image/png, image/jpeg, .pdf, .txt, text/plain"
+              />
+              {!isDriveConnected ? (
+                <button 
+                  onClick={onConnectDrive}
+                  disabled={isConnecting}
+                  className="flex items-center justify-center gap-2 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-400 disabled:cursor-wait w-56"
+                >
+                    {isConnecting ? (
+                      <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span>Connecting...</span>
+                      </>
+                    ) : (
+                      <>
+                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.925 9.094c-.225-.525-.525-.975-.9-1.35L13.5 2.219l-6 10.35 4.5 7.875 7.05-4.05c.45-.9.825-1.875.875-2.85zm-7.05-4.05l3.45 6-3.45 6-6-3.45-3.45-6 6-3.45z"></path></svg>
+                          <span>Connect to Google Drive</span>
+                      </>
+                    )}
+                </button>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                   <button 
+                    onClick={handleImportFromDrive}
+                    className="flex items-center gap-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"></path></svg>
+                    Import from Drive
+                  </button>
+                   <button 
                     onClick={handleUploadClick}
                     className="flex items-center gap-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
                   >
                     <UploadIcon className="w-5 h-5"/>
                     Upload to Drive
                   </button>
-                </>
-              ) : (
-                  <button 
-                    onClick={handleConnectDrive}
-                    disabled={isConnecting}
-                    className="flex items-center justify-center gap-2 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-400 disabled:cursor-wait w-56"
-                  >
-                      {isConnecting ? (
-                        <>
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                            <span>Connecting...</span>
-                        </>
-                      ) : (
-                        <>
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.925 9.094c-.225-.525-.525-.975-.9-1.35L13.5 2.219l-6 10.35 4.5 7.875 7.05-4.05c.45-.9.825-1.875.875-2.85zm-7.05-4.05l3.45 6-3.45 6-6-3.45-3.45-6 6-3.45z"></path></svg>
-                            <span>Connect to Google Drive</span>
-                        </>
-                      )}
-                  </button>
+                </div>
               )}
               <button onClick={() => setView(View.SopTemplates)} className="flex items-center gap-2 bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md">
                   <MagicIcon className="w-5 h-5"/>

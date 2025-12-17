@@ -1,4 +1,5 @@
-import { User, Document, Hotel, InspectionRecord, InspectionTemplate, Task, Area } from './types';
+
+import { User, Document, Hotel, InspectionRecord, InspectionTemplate, Task, Area, Incident } from './types';
 
 export const MOCK_USERS: User[] = [
     { id: 'user-1', name: 'Alice Johnson', email: 'alice@example.com', password: 'password', avatar: 'https://i.pravatar.cc/150?u=alice@example.com', role: 'Admin', status: 'Active', organizationId: 'org-1', hotelIds: ['hotel-1', 'hotel-2'], jobTitle: 'General Manager' },
@@ -107,4 +108,52 @@ export const MOCK_TASKS: Task[] = [
 
 export const MOCK_INSPECTION_RECORDS: InspectionRecord[] = [
     // ... some mock records if needed for reporting
+];
+
+export const MOCK_INCIDENTS: Incident[] = [
+    {
+        id: 'inc-1',
+        title: 'Leaking Pipe in Prep Kitchen',
+        description: 'Water is dripping from the ceiling pipe near the vegetable prep station. Slipping hazard.',
+        hotelId: 'hotel-1',
+        areaId: 'area-1-4',
+        status: 'Open',
+        severity: 'Critical',
+        category: 'Maintenance',
+        reportedBy: 'Bob Williams',
+        createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+        logs: [{ date: new Date(Date.now() - 86400000).toISOString(), action: 'Created', user: 'Bob Williams' }]
+    },
+    {
+        id: 'inc-2',
+        title: 'Guest Injury - Poolside',
+        description: 'Guest slipped on wet tiles near the shallow end. First aid applied. Report filed.',
+        hotelId: 'hotel-1',
+        areaId: 'area-1-3',
+        status: 'Resolved',
+        severity: 'Critical',
+        category: 'Guest',
+        reportedBy: 'Charlie Brown',
+        createdAt: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+        logs: [
+            { date: new Date(Date.now() - 172800000).toISOString(), action: 'Created', user: 'Charlie Brown' },
+            { date: new Date(Date.now() - 86400000).toISOString(), action: 'Status changed to Resolved', user: 'Alice Johnson' }
+        ]
+    },
+    {
+        id: 'inc-3',
+        title: 'Broken Lock on Chemical Storage',
+        description: 'The padlock hasp is rusted and broke off.',
+        hotelId: 'hotel-2',
+        areaId: 'area-2-4',
+        status: 'In Progress',
+        severity: 'Medium',
+        category: 'Safety',
+        reportedBy: 'Alice Johnson',
+        createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+        updatedAt: new Date(Date.now() - 3600000).toISOString(),
+        logs: [{ date: new Date(Date.now() - 3600000).toISOString(), action: 'Created', user: 'Alice Johnson' }]
+    }
 ];

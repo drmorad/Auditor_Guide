@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { InspectionRecord, InspectionResult } from '../types';
-import { CameraIcon, PlusCircleIcon, XIcon } from './icons';
+import { CameraIcon, PlusCircleIcon, XIcon, UploadIcon } from './icons';
 
 interface InspectionFormProps {
   inspection: InspectionRecord;
@@ -12,7 +13,8 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
   const [results, setResults] = useState<InspectionResult[]>(inspection.results);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [photoQuestionId, setPhotoQuestionId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const progress = useMemo(() => {
     const completed = results.filter(r => r.status !== 'pending').length;
@@ -31,9 +33,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
     ));
   };
   
-  const handleAddPhotoClick = (questionId: string) => {
+  const handleTakePhotoClick = (questionId: string) => {
     setPhotoQuestionId(questionId);
-    fileInputRef.current?.click();
+    cameraInputRef.current?.click();
+  };
+
+  const handleUploadPhotoClick = (questionId: string) => {
+    setPhotoQuestionId(questionId);
+    uploadInputRef.current?.click();
   };
   
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,9 +49,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
         const reader = new FileReader();
         reader.onload = (e) => {
             const base64String = e.target?.result as string;
-            setResults(currentResults => currentResults.map(r => 
-                r.questionId === photoQuestionId ? { ...r, photo: base64String } : r
-            ));
+            setResults(currentResults => currentResults.map(r => {
+                if (r.questionId === photoQuestionId) {
+                    const currentPhotos = r.photos || [];
+                    return { ...r, photos: [...currentPhotos, base64String] };
+                }
+                return r;
+            }));
             setPhotoQuestionId(null); // Reset
         };
         reader.readAsDataURL(file);
@@ -53,10 +64,14 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
     if(event.target) event.target.value = ''; 
   };
   
-  const handleRemovePhoto = (questionId: string) => {
-    setResults(currentResults => currentResults.map(r => 
-      r.questionId === questionId ? { ...r, photo: undefined } : r
-    ));
+  const handleRemovePhoto = (questionId: string, photoIndex: number) => {
+    setResults(currentResults => currentResults.map(r => {
+      if (r.questionId === questionId && r.photos) {
+          const newPhotos = r.photos.filter((_, i) => i !== photoIndex);
+          return { ...r, photos: newPhotos };
+      }
+      return r;
+    }));
   };
   
   const handleSaveProgress = () => {
@@ -78,8 +93,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
       <input 
         type="file" 
         accept="image/*" 
-        capture 
-        ref={fileInputRef} 
+        capture="environment"
+        ref={cameraInputRef} 
+        onChange={handleFileChange} 
+        className="hidden" 
+        aria-hidden="true"
+      />
+      <input 
+        type="file" 
+        accept="image/*" 
+        ref={uploadInputRef} 
         onChange={handleFileChange} 
         className="hidden" 
         aria-hidden="true"
@@ -158,30 +181,36 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
                                   />
                               </div>
                               <div>
-                                  <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Photo Evidence</label>
-                                  <div className="mt-1 flex items-center gap-2">
-                                      {result.photo ? (
-                                          <div className="relative group w-24 h-24 bg-slate-200 dark:bg-slate-600 rounded-md">
+                                  <label className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2 block">Photo Evidence</label>
+                                  <div className="flex flex-wrap gap-3">
+                                      {result.photos?.map((photo, i) => (
+                                          <div key={i} className="relative group w-24 h-24 bg-slate-200 dark:bg-slate-600 rounded-md">
                                               <img 
-                                                  src={result.photo} 
-                                                  alt="Inspection evidence" 
+                                                  src={photo} 
+                                                  alt={`Evidence ${i+1}`} 
                                                   className="w-full h-full object-cover rounded-md cursor-pointer"
-                                                  onClick={() => setViewingPhoto(result.photo || null)}
+                                                  onClick={() => setViewingPhoto(photo)}
                                               />
                                               <button 
-                                                  onClick={() => handleRemovePhoto(result.questionId)}
-                                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-sm shadow-md"
+                                                  onClick={() => handleRemovePhoto(result.questionId, i)}
+                                                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
                                                   aria-label="Remove photo"
                                               >
                                                   <XIcon className="w-4 h-4"/>
                                               </button>
                                           </div>
-                                      ) : (
-                                          <button onClick={() => handleAddPhotoClick(result.questionId)} className="flex items-center gap-2 text-sm text-primary-600 font-semibold p-2 rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/50">
-                                              <PlusCircleIcon className="w-5 h-5"/>
-                                              Add Photo
-                                          </button>
-                                      )}
+                                      ))}
+                                      
+                                      <div className="flex flex-col gap-2">
+                                        <button onClick={() => handleTakePhotoClick(result.questionId)} className="flex items-center justify-center gap-2 w-24 h-10 text-xs text-primary-600 font-semibold rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/50 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600">
+                                            <CameraIcon className="w-4 h-4"/>
+                                            Camera
+                                        </button>
+                                        <button onClick={() => handleUploadPhotoClick(result.questionId)} className="flex items-center justify-center gap-2 w-24 h-10 text-xs text-primary-600 font-semibold rounded-md hover:bg-primary-50 dark:hover:bg-primary-900/50 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600">
+                                            <UploadIcon className="w-4 h-4"/>
+                                            Upload
+                                        </button>
+                                      </div>
                                   </div>
                               </div>
                           </div>

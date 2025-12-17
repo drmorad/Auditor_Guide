@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Sop, View, Document } from '../types';
 import { generateSop, reviewSop } from '../services/geminiService';
@@ -71,6 +72,7 @@ export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog
   
   // State for "Generate" mode
   const [topic, setTopic] = useState('');
+  const [keywords, setKeywords] = useState('');
   const [details, setDetails] = useState('');
   const [generatedSop, setGeneratedSop] = useState<Sop | null>(null);
   
@@ -93,14 +95,17 @@ export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog
             // Reconstruct details from SOP for display in textarea, if user wants to re-generate
             const detailsFromSop = `Purpose: ${initialData.purpose ? initialData.purpose + '\n' : ''}Scope: ${initialData.scope ? initialData.scope + '\n' : ''}Steps:\n${initialData.steps.map(s => `- ${s.title}: ${s.description}`).join('\n')}`;
             setDetails(detailsFromSop);
+            setKeywords(''); // Reset keywords on new SOP data
         } else if ('topic' in initialData) { // If it's a {topic, details} object
             setTopic(initialData.topic);
             setDetails(initialData.details);
+            setKeywords(''); // Reset keywords
             setGeneratedSop(null); // Clear any previous generated SOP
         }
     } else { // No initial data, reset form
         setTopic('');
         setDetails('');
+        setKeywords('');
         setGeneratedSop(null);
     }
     // Clear initialData in parent after consuming it
@@ -123,7 +128,7 @@ export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog
     setError(null);
     setGeneratedSop(null);
     try {
-      const result = await generateSop(topic, details);
+      const result = await generateSop(topic, keywords, details);
       setGeneratedSop(result);
       addAuditLog('SOP Generated', `Topic: "${topic}"`);
     } catch (e) {
@@ -224,6 +229,10 @@ export const SopGenerator: React.FC<SopGeneratorProps> = ({ setView, addAuditLog
             <div>
                 <label htmlFor="sop-topic" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">SOP Topic</label>
                 <input id="sop-topic" type="text" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g., Cleaning and Sanitizing Food Contact Surfaces" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500"/>
+            </div>
+            <div>
+                <label htmlFor="sop-keywords" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Keywords / Outline (Optional)</label>
+                <input id="sop-keywords" type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="e.g., temperature control, cross-contamination, FIFO" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary-500 focus:border-primary-500"/>
             </div>
             <div>
                 <label htmlFor="sop-details" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Key Details (Optional)</label>

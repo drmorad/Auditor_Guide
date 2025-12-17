@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { SopTemplate, View, SopTemplateCategory } from '../types';
 import { DocumentIcon, MagicIcon } from './icons';
@@ -92,13 +93,13 @@ export const SopTemplates: React.FC<SopTemplatesProps> = ({ onSelectTemplate, on
     <div className="animate-fade-in">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div className="flex items-center gap-4">
-                <button onClick={() => setView(View.Documents)} className="text-slate-500 hover:text-primary-500 transition-colors" aria-label="Back to Document Hub">
+                <button onClick={() => setView(View.SopLibrary)} className="text-slate-500 hover:text-primary-500 transition-colors" aria-label="Back to SOP Library">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                     </svg>
                 </button>
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white">SOP Templates</h1>
+                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white">SOP Generator</h1>
                     <p className="text-slate-500 dark:text-slate-400 mt-1">Choose a template to get started, or create a new one from scratch.</p>
                 </div>
             </div>

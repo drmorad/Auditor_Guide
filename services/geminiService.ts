@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { Sop, UserRole, WeeklyPlan, Hotel, InspectionTemplate, User } from '../types';
+import { Sop, UserRole, WeeklyPlan, Hotel, InspectionTemplate, User, InspectionQuestion } from '../types';
 
 const API_KEY = process.env.API_KEY;
 
@@ -46,12 +47,16 @@ const sopSchema = {
   required: ["title", "steps"],
 };
 
-export const generateSop = async (topic: string, details: string): Promise<Sop> => {
+export const generateSop = async (topic: string, keywords: string, details: string): Promise<Sop> => {
   try {
     const prompt = `
       Generate a comprehensive Standard Operating Procedure (SOP).
       
       The main topic for the SOP is: "${topic}"
+      
+      ${keywords ? `
+      Please focus on or incorporate the following keywords, topics, or outline points: "${keywords}"
+      ` : ''}
       
       If provided, here are some key details, requirements, or specific points that must be included in the procedure: "${details}"
 
@@ -347,5 +352,59 @@ export const generateWeeklyInspectionPlan = async (hotel: Hotel, templates: Insp
     } catch (error) {
         console.error("Error generating weekly plan:", error);
         throw new Error("Failed to generate the inspection plan. Please try again.");
+    }
+};
+
+const inspectionQuestionsSchema = {
+    type: Type.OBJECT,
+    properties: {
+        questions: {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    text: { type: Type.STRING, description: "The question or checklist item." },
+                    guidance: { type: Type.STRING, description: "Brief guidance or what to look for." },
+                },
+                required: ["text"]
+            }
+        }
+    },
+    required: ["questions"]
+};
+
+export const generateChecklistFromSop = async (sourceText: string): Promise<InspectionQuestion[]> => {
+    try {
+        const prompt = `
+            You are a quality assurance expert. Convert the following Standard Operating Procedure (SOP) or topic description into a practical inspection checklist.
+            
+            **Source Text:**
+            "${sourceText}"
+            
+            Create a list of specific, actionable yes/no questions that an auditor can use to verify compliance with this procedure. 
+            Include brief guidance for each question where helpful.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: inspectionQuestionsSchema,
+                temperature: 0.5,
+            },
+        });
+
+        const jsonText = response.text;
+        const data = JSON.parse(jsonText);
+        
+        return data.questions.map((q: any, index: number) => ({
+            id: `gen-q-${Date.now()}-${index}`,
+            text: q.text,
+            guidance: q.guidance || ''
+        }));
+    } catch (error) {
+        console.error("Error generating checklist:", error);
+        throw new Error("Failed to generate checklist from SOP.");
     }
 };

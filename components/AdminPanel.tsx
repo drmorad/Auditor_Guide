@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
 import { User, Hotel, InspectionTemplate } from '../types';
-import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon, UserPlusIcon, ClipboardDocumentListIcon, TrashIcon } from './icons';
+import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon, UserPlusIcon, ClipboardDocumentListIcon, TrashIcon, BriefcaseIcon, PlusCircleIcon } from './icons';
 import { ConfirmRoleChangeModal } from './ConfirmRoleChangeModal';
 import { InviteUserModal } from './InviteUserModal';
 import { CreateTemplateModal } from './CreateTemplateModal';
@@ -28,9 +27,15 @@ interface AdminPanelProps {
   onUpdateHotel: (updatedHotel: Hotel) => void;
   inspectionTemplates: InspectionTemplate[];
   onCreateTemplate: (template: InspectionTemplate) => void;
+  departments: string[];
+  onAddDepartment: (name: string) => void;
+  onDeleteDepartment: (name: string) => void;
+  isDriveConnected: boolean;
+  isConnecting: boolean;
+  onConnectDrive: () => void;
 }
 
-type AdminTab = 'users' | 'hotels' | 'templates';
+type AdminTab = 'users' | 'hotels' | 'templates' | 'departments';
 
 const AssignHotelsModal: React.FC<{
   user: User;
@@ -107,7 +112,7 @@ const AssignHotelsModal: React.FC<{
 };
 
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel, onDeleteHotel, onUpdateHotel, inspectionTemplates, onCreateTemplate }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel, onDeleteHotel, onUpdateHotel, inspectionTemplates, onCreateTemplate, departments, onAddDepartment, onDeleteDepartment, isDriveConnected, isConnecting, onConnectDrive }) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newHotelName, setNewHotelName] = useState('');
   const [hotelSuccessMessage, setHotelSuccessMessage] = useState('');
@@ -117,6 +122,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
   const [assigningHotelsToUser, setAssigningHotelsToUser] = useState<User | null>(null);
   const [roleChangeConfirmation, setRoleChangeConfirmation] = useState<{ user: User; newRole: User['role'] } | null>(null);
   const [managingAreasForHotel, setManagingAreasForHotel] = useState<Hotel | null>(null);
+  const [newDepartmentName, setNewDepartmentName] = useState('');
 
   const pendingUsers = useMemo(() => users.filter(u => u.status === 'Pending'), [users]);
   const activeUsers = useMemo(() => users.filter(u => u.status === 'Active'), [users]);
@@ -152,6 +158,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
     }
   };
   
+  const handleAddDepartmentSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newDepartmentName.trim()) {
+          onAddDepartment(newDepartmentName.trim());
+          setNewDepartmentName('');
+      }
+  };
+
   const handleDeleteHotelClick = (hotel: Hotel) => {
     const confirmationMessage = `Are you sure you want to delete "${hotel.name}"? This will also remove it from any users it is assigned to. This action cannot be undone.`;
     if (window.confirm(confirmationMessage)) {
@@ -371,15 +385,57 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
     </div>
   );
 
+  const renderDepartmentManagement = () => (
+      <div className="space-y-6 animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
+              <h2 className="text-xl font-semibold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-3">Manage Departments</h2>
+              <form onSubmit={handleAddDepartmentSubmit} className="mt-4 flex flex-col sm:flex-row gap-2">
+                  <input
+                      type="text"
+                      value={newDepartmentName}
+                      onChange={e => setNewDepartmentName(e.target.value)}
+                      placeholder="New Department Name"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg"
+                      aria-label="New Department Name"
+                  />
+                  <button type="submit" className="bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md flex-shrink-0 flex items-center gap-2">
+                      <PlusCircleIcon className="w-5 h-5"/>
+                      Add
+                  </button>
+              </form>
+              <div className="mt-6">
+                  <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">Existing Departments:</h3>
+                  <div className="flex flex-wrap gap-2">
+                      {departments.length > 0 ? departments.map(dept => (
+                          <div key={dept} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700/50 rounded-full border border-slate-200 dark:border-slate-600">
+                              <span className="text-slate-800 dark:text-slate-200 text-sm">{dept}</span>
+                              <button
+                                  onClick={() => onDeleteDepartment(dept)}
+                                  className="text-slate-400 hover:text-red-500 transition-colors p-0.5"
+                                  title={`Remove ${dept}`}
+                              >
+                                  <XIcon className="w-4 h-4"/>
+                              </button>
+                          </div>
+                      )) : (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">No departments added yet.</p>
+                      )}
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-fade-in">
         <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Panel</h1>
         
-        <div className="border-b border-slate-200 dark:border-slate-700">
-          <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-            <TabButton tabName="users" label="User Management" icon={<TeamIcon className="w-5 h-5"/>} />
+        <div className="border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+          <nav className="-mb-px flex space-x-6 min-w-max" aria-label="Tabs">
             <TabButton tabName="hotels" label="Hotel Management" icon={<BuildingOfficeIcon className="w-5 h-5"/>} />
-            <TabButton tabName="templates" label="Inspection Templates" icon={<ClipboardDocumentListIcon className="w-5 h-5"/>} />
+            <TabButton tabName="users" label="User Management" icon={<TeamIcon className="w-5 h-5"/>} />
+            <TabButton tabName="templates" label="Templates" icon={<ClipboardDocumentListIcon className="w-5 h-5"/>} />
+            <TabButton tabName="departments" label="Departments" icon={<BriefcaseIcon className="w-5 h-5"/>} />
           </nav>
         </div>
 
@@ -387,6 +443,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
             {activeTab === 'users' && renderUserManagement()}
             {activeTab === 'hotels' && renderHotelManagement()}
             {activeTab === 'templates' && renderTemplateManagement()}
+            {activeTab === 'departments' && renderDepartmentManagement()}
         </div>
         
         {isInviteModalOpen && (
@@ -401,6 +458,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
             <CreateTemplateModal
                 onClose={() => setIsTemplateModalOpen(false)}
                 onSave={handleCreateTemplate}
+                departments={departments}
+                isDriveConnected={isDriveConnected}
+                isConnecting={isConnecting}
+                onConnectDrive={onConnectDrive}
             />
         )}
 

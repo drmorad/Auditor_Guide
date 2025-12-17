@@ -1,3 +1,4 @@
+
 export enum View {
   Dashboard = 'DASHBOARD',
   Documents = 'DOCUMENTS',
@@ -12,6 +13,8 @@ export enum View {
   Reporting = 'REPORTING',
   Scheduler = 'SCHEDULER',
   Planner = 'PLANNER',
+  SopLibrary = 'SOP_LIBRARY',
+  Incidents = 'INCIDENTS',
 }
 
 export interface SopStep {
@@ -93,7 +96,7 @@ export interface InspectionResult {
     questionId: string;
     question: string;
     status: 'pass' | 'fail' | 'pending';
-    photo?: string; // base64 string
+    photos?: string[]; // Array of base64 strings
     notes?: string;
 }
 
@@ -164,4 +167,25 @@ export interface WeeklyPlan {
     friday: PlannedInspection[];
     saturday: PlannedInspection[];
     sunday: PlannedInspection[];
+}
+
+export type IncidentStatus = 'Open' | 'In Progress' | 'Resolved' | 'Verified';
+export type IncidentSeverity = 'Low' | 'Medium' | 'Critical';
+export type IncidentCategory = 'Maintenance' | 'Safety' | 'Hygiene' | 'Guest' | 'Security';
+
+export interface Incident {
+    id: string;
+    title: string;
+    description: string;
+    hotelId: string;
+    areaId?: string;
+    status: IncidentStatus;
+    severity: IncidentSeverity;
+    category: IncidentCategory;
+    reportedBy: string; // User Name
+    assignedTo?: string; // User ID
+    createdAt: string; // ISO Date
+    updatedAt: string; // ISO Date
+    photos?: string[]; // Array of base64
+    logs: { date: string; action: string; user: string }[];
 }
