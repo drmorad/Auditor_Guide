@@ -1,5 +1,4 @@
-
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { InspectionRecord, InspectionResult } from '../types';
 import { CameraIcon, PlusCircleIcon, XIcon, UploadIcon } from './icons';
 
@@ -15,6 +14,13 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
   const [photoQuestionId, setPhotoQuestionId] = useState<string | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  const savedResultsRef = useRef(JSON.stringify(inspection.results));
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  useEffect(() => {
+    setHasUnsavedChanges(JSON.stringify(results) !== savedResultsRef.current);
+  }, [results]);
 
   const progress = useMemo(() => {
     const completed = results.filter(r => r.status !== 'pending').length;
@@ -75,7 +81,10 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
   };
   
   const handleSaveProgress = () => {
-    onSave({ ...inspection, results });
+    const updatedRecord = { ...inspection, results };
+    onSave(updatedRecord);
+    savedResultsRef.current = JSON.stringify(results);
+    setHasUnsavedChanges(false);
   };
   
   const handleCompleteInspection = () => {
@@ -86,6 +95,16 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
     const passedCount = results.filter(r => r.status === 'pass').length;
     const score = results.length > 0 ? Math.round((passedCount / results.length) * 100) : 0;
     onSave({ ...inspection, results, status: 'Completed', complianceScore: score });
+  };
+
+  const handleExit = () => {
+    if (hasUnsavedChanges) {
+      if (window.confirm("You have unsaved changes. Are you sure you want to exit without saving?")) {
+        onExit();
+      }
+    } else {
+      onExit();
+    }
   };
 
   return (
@@ -133,7 +152,7 @@ export const InspectionForm: React.FC<InspectionFormProps> = ({ inspection, onSa
                       <h1 className="text-2xl font-bold text-slate-800 dark:text-white">{inspection.templateName}</h1>
                       <p className="text-slate-500 dark:text-slate-400">{inspection.hotelName}{inspection.areaName ? ` - ${inspection.areaName}` : ''} - {inspection.date}</p>
                   </div>
-                  <button onClick={onExit} className="text-sm font-semibold text-slate-600 hover:text-primary-600">Exit Form</button>
+                  <button onClick={handleExit} className="text-sm font-semibold text-slate-600 hover:text-primary-600">Exit Form</button>
               </div>
               {/* Progress Bar */}
               <div>

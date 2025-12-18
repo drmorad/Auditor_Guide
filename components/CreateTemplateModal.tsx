@@ -8,6 +8,7 @@ interface CreateTemplateModalProps {
   onClose: () => void;
   onSave: (template: InspectionTemplate) => void;
   departments: string[];
+  isDriveConfigured: boolean;
   isDriveConnected: boolean;
   isConnecting: boolean;
   onConnectDrive: () => void;
@@ -15,7 +16,7 @@ interface CreateTemplateModalProps {
 
 type QuestionDraft = Omit<InspectionQuestion, 'id'>;
 
-export const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({ onClose, onSave, departments, isDriveConnected, isConnecting, onConnectDrive }) => {
+export const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({ onClose, onSave, departments, isDriveConfigured, isDriveConnected, isConnecting, onConnectDrive }) => {
   const [name, setName] = useState('');
   const [department, setDepartment] = useState(departments[0] || '');
   const [questions, setQuestions] = useState<QuestionDraft[]>([
@@ -174,13 +175,17 @@ export const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({ onClos
                           {isGenerating ? 'Generating...' : 'Generate from Text'}
                       </button>
                       
-                       {isDriveConnected ? (
-                        <button onClick={handleImportAndGenerate} disabled={isGenerating} className="bg-primary-600 text-white text-sm font-semibold py-1.5 px-3 rounded-md hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2">
-                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"></path></svg>
+                      {!isDriveConfigured ? (
+                          <button type="button" disabled className="bg-slate-200 text-slate-500 text-sm font-semibold py-1.5 px-3 rounded-md cursor-not-allowed flex items-center gap-2">
+                              Drive Not Configured
+                          </button>
+                      ) : isDriveConnected ? (
+                        <button type="button" onClick={handleImportAndGenerate} disabled={isGenerating} className="bg-primary-600 text-white text-sm font-semibold py-1.5 px-3 rounded-md hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2">
+                           <MagicIcon className="w-4 h-4" />
                            Import from Drive
                         </button>
                       ) : (
-                        <button onClick={onConnectDrive} disabled={isConnecting} className="bg-blue-500 text-white text-sm font-semibold py-1.5 px-3 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2">
+                        <button type="button" onClick={onConnectDrive} disabled={isConnecting} className="bg-blue-500 text-white text-sm font-semibold py-1.5 px-3 rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2">
                            {isConnecting ? 'Connecting...' : 'Connect Drive to Import'}
                         </button>
                       )}

@@ -1,7 +1,5 @@
 {
-  "name": "Auditors Guide",
-  "description": "A centralized hub for compliance documentation, HACCP plans, monitoring logs, and team access. Features an AI-powered assistant to generate Standard Operating Procedures (SOPs).",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "name": "Auditor's Guide",
+  "description": "Auditor's Guide is an all-in-one, AI-powered compliance and operations platform designed for the hospitality industry. It helps streamline inspections, manage SOPs, track incidents, and gain data-driven insights to elevate service standards.",
+  "requestFramePermissions": []
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { User, Hotel, InspectionTemplate } from '../types';
-import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon, UserPlusIcon, ClipboardDocumentListIcon, TrashIcon, BriefcaseIcon, PlusCircleIcon } from './icons';
+import { MailIcon, TeamIcon, BuildingOfficeIcon, XIcon, UserPlusIcon, ClipboardDocumentListIcon, TrashIcon, BriefcaseIcon, PlusCircleIcon, LinkIcon, DriveIcon, CheckIcon, ExclamationTriangleIcon } from './icons';
 import { ConfirmRoleChangeModal } from './ConfirmRoleChangeModal';
 import { InviteUserModal } from './InviteUserModal';
 import { CreateTemplateModal } from './CreateTemplateModal';
@@ -33,9 +33,13 @@ interface AdminPanelProps {
   isDriveConnected: boolean;
   isConnecting: boolean;
   onConnectDrive: () => void;
+  onDisconnectDrive: () => void;
+  isDriveConfigured: boolean;
+  driveError: string | null;
+  driveDataFileId: string | null;
 }
 
-type AdminTab = 'users' | 'hotels' | 'templates' | 'departments';
+type AdminTab = 'users' | 'hotels' | 'templates' | 'departments' | 'integrations';
 
 const AssignHotelsModal: React.FC<{
   user: User;
@@ -112,7 +116,7 @@ const AssignHotelsModal: React.FC<{
 };
 
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel, onDeleteHotel, onUpdateHotel, inspectionTemplates, onCreateTemplate, departments, onAddDepartment, onDeleteDepartment, isDriveConnected, isConnecting, onConnectDrive }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendInvite, addAuditLog, currentUser, hotels, onAddHotel, onDeleteHotel, onUpdateHotel, inspectionTemplates, onCreateTemplate, departments, onAddDepartment, onDeleteDepartment, isDriveConnected, isConnecting, onConnectDrive, onDisconnectDrive, isDriveConfigured, driveError, driveDataFileId }) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newHotelName, setNewHotelName] = useState('');
   const [hotelSuccessMessage, setHotelSuccessMessage] = useState('');
@@ -129,7 +133,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
 
   const handleInviteSave = (newUser: Omit<User, 'id' | 'avatar'>) => {
     if (users.some(u => u.email.toLowerCase() === newUser.email.trim().toLowerCase())) {
-        // This check should ideally be inside the modal, but as a safeguard:
         alert('A user with this email already exists.');
         return;
     }
@@ -209,7 +212,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
   
   const renderUserManagement = () => (
     <div className="space-y-6 animate-fade-in">
-        {/* Pending Invitations List Section */}
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
@@ -239,7 +241,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
              </div>
         </div>
 
-        {/* Active Users List Section */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md">
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white p-6 border-b border-slate-200 dark:border-slate-700">
                 Manage Active Users
@@ -426,6 +427,81 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
       </div>
   );
 
+  const renderIntegrationsManagement = () => (
+    <div className="space-y-6 animate-fade-in">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+          Manage Integrations
+        </h2>
+        <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <DriveIcon className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-grow">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Google Drive Data Sync</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Connect your Google Drive account to save and load all application data.</p>
+                </div>
+                <div className="flex-shrink-0 flex flex-col items-center gap-2 w-full sm:w-auto">
+                    {driveError ? (
+                        <div className="relative group flex items-center justify-center gap-2 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 font-semibold py-2 px-4 rounded-lg w-full sm:w-auto">
+                           <ExclamationTriangleIcon className="w-5 h-5" />
+                           <span>Unavailable</span>
+                           <div className="absolute bottom-full mb-2 w-72 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                             {driveError}
+                           </div>
+                        </div>
+                    ) : !isDriveConfigured ? (
+                        <div className="relative group flex items-center justify-center gap-2 bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 font-semibold py-2 px-4 rounded-lg w-full sm:w-auto cursor-not-allowed">
+                           <ExclamationTriangleIcon className="w-5 h-5" />
+                           <span>Not Configured</span>
+                           <div className="absolute bottom-full mb-2 w-72 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            Google Drive integration is unavailable. The administrator needs to configure the required API credentials.
+                           </div>
+                        </div>
+                    ) : isDriveConnected ? (
+                        <>
+                            <span className="text-xs font-semibold text-green-600 dark:text-green-400 flex items-center gap-1">
+                                <CheckIcon className="w-4 h-4" /> Connected
+                            </span>
+                            <button
+                                onClick={onDisconnectDrive}
+                                className="text-xs font-semibold text-red-500 hover:underline"
+                            >
+                                Disconnect
+                            </button>
+                        </>
+                    ) : (
+                        <button
+                            onClick={onConnectDrive}
+                            disabled={isConnecting}
+                            className="flex items-center justify-center gap-2 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-400 disabled:cursor-wait w-full sm:w-auto"
+                        >
+                            {isConnecting ? 'Connecting...' : 'Connect'}
+                        </button>
+                    )}
+                </div>
+            </div>
+            {driveDataFileId && (
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-600">
+                <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Data File Link</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Your application data is stored in the following file in your Google Drive:</p>
+                <a 
+                  href={`https://drive.google.com/file/d/${driveDataFileId}/view`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex items-center gap-2 text-sm text-primary-600 dark:text-primary-400 hover:underline break-all"
+                >
+                  <LinkIcon className="w-4 h-4 flex-shrink-0" />
+                  <span>auditors_guide_data.json</span>
+                </a>
+              </div>
+            )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-fade-in">
         <h1 className="text-3xl font-bold text-slate-800 dark:text-white">Admin Panel</h1>
@@ -436,6 +512,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
             <TabButton tabName="users" label="User Management" icon={<TeamIcon className="w-5 h-5"/>} />
             <TabButton tabName="templates" label="Templates" icon={<ClipboardDocumentListIcon className="w-5 h-5"/>} />
             <TabButton tabName="departments" label="Departments" icon={<BriefcaseIcon className="w-5 h-5"/>} />
+            <TabButton tabName="integrations" label="Integrations" icon={<LinkIcon className="w-5 h-5"/>} />
           </nav>
         </div>
 
@@ -444,6 +521,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
             {activeTab === 'hotels' && renderHotelManagement()}
             {activeTab === 'templates' && renderTemplateManagement()}
             {activeTab === 'departments' && renderDepartmentManagement()}
+            {activeTab === 'integrations' && renderIntegrationsManagement()}
         </div>
         
         {isInviteModalOpen && (
@@ -459,6 +537,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ users, setUsers, onSendI
                 onClose={() => setIsTemplateModalOpen(false)}
                 onSave={handleCreateTemplate}
                 departments={departments}
+                isDriveConfigured={isDriveConfigured}
                 isDriveConnected={isDriveConnected}
                 isConnecting={isConnecting}
                 onConnectDrive={onConnectDrive}

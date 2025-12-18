@@ -1,7 +1,12 @@
-
 import React from 'react';
 
 type IconProps = React.SVGProps<SVGSVGElement>;
+
+export const DriveIcon: React.FC<IconProps> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24" fill="currentColor" {...props}>
+    <path d="M7.71 5.43l-5.23 9.07L4 17.57l5.23-9.07-1.52-3.07M10.19 19l-5.23-9.07L6.48 5l5.23 9.07-1.52 4.93M17.5 14.5l-5.23-9.07L13.79 2l5.23 9.07-1.52 3.43z"></path>
+  </svg>
+);
 
 export const TrendingUpIcon: React.FC<IconProps> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -191,8 +196,13 @@ export const PrinterIcon: React.FC<IconProps> = (props) => (
 );
 
 export const BriefcaseIcon: React.FC<IconProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.07a2.25 2.25 0 01-2.25 2.25H5.92a2.25 2.25 0 01-2.25-2.25v-4.07m16.5 0a2.25 2.25 0 00-2.25-2.25H5.92a2.25 2.25 0 00-2.25 2.25m16.5 0v-2.07a2.25 2.25 0 00-2.25-2.25H5.92a2.25 2.25 0 00-2.25 2.25v2.07m16.5 0h-16.5" />
+    </svg>
+);
+
+export const LinkIcon: React.FC<IconProps> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.111 48.111 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175 1.108-.164 2.247-.297 3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38a24.223 24.223 0 01-5.228-1.921m16.5 0a24.223 24.223 0 01-5.228 1.921M3 14.15l1.979-.79m14.042.79l1.979-.79M5.625 14.15v4.25m12.75 0v-4.25m-12.75 0c.231.077.467.148.706.213m11.338-.213c-.238.065-.475.136-.706.213m0 0a24.009 24.009 0 01-9.928 0m9.928 0a24.009 24.009 0 01-9.928 0m0 0a48.108 48.108 0 00-3.478-.397m12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 5.25V4.5a2.25 2.25 0 00-2.25-2.25h-4.5A2.25 2.25 0 007.5 4.5v.75" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
   </svg>
 );

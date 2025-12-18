@@ -1,4 +1,4 @@
-const CACHE_NAME = 'auditors-guide-cache-v1';
+const CACHE_NAME = 'auditors-guide-cache-v2';
 const urlsToCache = [
   '/',
   'index.html',
@@ -23,6 +23,7 @@ const urlsToCache = [
   'components/EditDocumentModal.tsx',
   'components/Header.tsx',
   'components/icons.tsx',
+  'components/IncidentManager.tsx',
   'components/InspectionForm.tsx',
   'components/InspectionManager.tsx',
   'components/InspectionPlanner.tsx',
@@ -35,6 +36,7 @@ const urlsToCache = [
   'components/Settings.tsx',
   'components/Sidebar.tsx',
   'components/SopGenerator.tsx',
+  'components/SopLibrary.tsx',
   'components/SopTemplates.tsx',
   'components/StartInspectionModal.tsx',
   'components/TeamManager.tsx',

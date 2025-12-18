@@ -203,12 +203,12 @@ export const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, set
                         <form onSubmit={handleCreateIncident} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>
-                                <input required type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="e.g. Broken Pipe in Kitchen" />
+                                <input required type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="e.g. Broken Pipe in Kitchen" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Severity</label>
-                                    <select value={newSeverity} onChange={e => setNewSeverity(e.target.value as any)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
+                                    <select value={newSeverity} onChange={e => setNewSeverity(e.target.value as any)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white">
                                         <option value="Low">Low</option>
                                         <option value="Medium">Medium</option>
                                         <option value="Critical">Critical</option>
@@ -216,7 +216,7 @@ export const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, set
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Category</label>
-                                    <select value={newCategory} onChange={e => setNewCategory(e.target.value as any)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
+                                    <select value={newCategory} onChange={e => setNewCategory(e.target.value as any)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white">
                                         <option value="Maintenance">Maintenance</option>
                                         <option value="Safety">Safety</option>
                                         <option value="Hygiene">Hygiene</option>
@@ -228,14 +228,14 @@ export const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, set
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Hotel</label>
-                                    <select required value={newHotelId} onChange={e => setNewHotelId(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
+                                    <select required value={newHotelId} onChange={e => setNewHotelId(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white">
                                         <option value="">Select Hotel</option>
                                         {hotels.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Area</label>
-                                    <select value={newAreaId} onChange={e => setNewAreaId(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" disabled={!newHotelId}>
+                                    <select value={newAreaId} onChange={e => setNewAreaId(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white" disabled={!newHotelId}>
                                         <option value="">Select Area (Optional)</option>
                                         {activeHotel?.areas?.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                     </select>
@@ -243,7 +243,7 @@ export const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, set
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
-                                <textarea required rows={3} value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" />
+                                <textarea required rows={3} value={newDesc} onChange={e => setNewDesc(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
                             </div>
                             
                             {/* Camera / Photo Upload Section */}
@@ -301,7 +301,7 @@ export const IncidentManager: React.FC<IncidentManagerProps> = ({ incidents, set
 
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assign To</label>
-                                <select value={newAssignee} onChange={e => setNewAssignee(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
+                                <select value={newAssignee} onChange={e => setNewAssignee(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600 dark:text-white">
                                     <option value="">Unassigned</option>
                                     {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
                                 </select>

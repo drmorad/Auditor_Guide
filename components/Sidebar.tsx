@@ -1,7 +1,8 @@
 
+
 import React from 'react';
 import { View, User } from '../types';
-import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon, MagicIcon, CalendarCheckIcon, TicketIcon, ClipboardDocumentListIcon } from './icons';
+import { DashboardIcon, DocumentIcon, ClipboardCheckIcon, TeamIcon, AuditLogIcon, SettingsIcon, BuildingOfficeIcon, TrendingUpIcon, MagicIcon, CalendarCheckIcon, TicketIcon, ClipboardDocumentListIcon, BriefcaseIcon } from './icons';
 
 interface SidebarProps {
   view: View | null;
@@ -43,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user,
     { id: View.Incidents, label: 'Incident Tickets', icon: <TicketIcon className="w-6 h-6" /> },
     { id: View.Team, label: 'Team Access', icon: <TeamIcon className="w-6 h-6" /> },
     { id: View.Reporting, label: 'Reporting', icon: <TrendingUpIcon className="w-6 h-6" /> },
-    { id: View.Scheduler, label: 'Scheduler', icon: <AuditLogIcon className="w-6 h-6" /> },
+    { id: View.Scheduler, label: 'Scheduler', icon: <BriefcaseIcon className="w-6 h-6" /> },
     { id: View.Planner, label: 'Inspection Planner', icon: <CalendarCheckIcon className="w-6 h-6" /> },
     { id: View.AuditLog, label: 'Audit Log', icon: <AuditLogIcon className="w-6 h-6" /> },
   ];
@@ -59,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ view, setView, onLogout, user,
       }`}
     >
       <div className="h-20 flex items-center justify-center border-b border-slate-700">
-        <h1 className="text-2xl font-bold">AuditorsGuide</h1>
+        <h1 className="text-2xl font-bold">Auditor's Guide</h1>
       </div>
       <nav className="flex-1 p-4">
         <ul className="space-y-2">

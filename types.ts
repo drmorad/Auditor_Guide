@@ -1,136 +1,73 @@
-
 export enum View {
   Dashboard = 'DASHBOARD',
+  Login = 'LOGIN',
   Documents = 'DOCUMENTS',
-  Inspections = 'INSPECTIONS',
-  Team = 'TEAM',
-  AuditLog = 'AUDIT_LOG',
-  Settings = 'SETTINGS',
+  SopLibrary = 'SOP_LIBRARY',
   SopGenerator = 'SOP_GENERATOR',
   SopTemplates = 'SOP_TEMPLATES',
-  AdminPanel = 'ADMIN_PANEL',
-  UserProfile = 'USER_PROFILE',
+  Inspections = 'INSPECTIONS',
+  Incidents = 'INCIDENTS',
+  Team = 'TEAM',
   Reporting = 'REPORTING',
   Scheduler = 'SCHEDULER',
   Planner = 'PLANNER',
-  SopLibrary = 'SOP_LIBRARY',
-  Incidents = 'INCIDENTS',
+  AuditLog = 'AUDIT_LOG',
+  AdminPanel = 'ADMIN_PANEL',
+  UserProfile = 'USER_PROFILE',
+  Settings = 'SETTINGS',
 }
 
-export interface SopStep {
-  title: string;
-  description: string;
-}
-
-export interface Sop {
-  title: string;
-  purpose?: string;
-  scope?: string;
-  steps: SopStep[];
-}
-
-export interface Area {
-  id: string;
-  name: string;
-  type: string;
-}
-
-export interface Hotel {
-  id: string;
-  name: string;
-  areas?: Area[];
-}
-
-export interface AuditLogEntry {
-  id: string;
-  action: string;
-  user: string;
-  details: string;
-  timestamp: Date;
-}
-
+// User & Auth
 export type UserRole = 'Admin' | 'Editor' | 'Viewer';
 export type UserStatus = 'Active' | 'Pending';
-
 export interface User {
   id: string;
   name: string;
   email: string;
-  avatar: string; // URL to avatar image
+  avatar: string;
   role: UserRole;
   status: UserStatus;
   password?: string;
-  verificationCode?: string;
   organizationId: string;
-  hotelIds?: string[];
   jobTitle?: string;
+  verificationCode?: string;
+  hotelIds?: string[];
 }
 
+// Documents
 export interface Note {
   id: string;
   content: string;
-  timestamp: string; // ISO date string
+  timestamp: string;
   highlightedText: string;
 }
-
 export interface Document {
   id: string;
-  name:string;
+  driveId?: string;
+  name: string;
   category: 'SOP' | 'HACCP' | 'Audit' | 'Team File';
   tags: string[];
-  lastModified: string; // ISO date string
+  lastModified: string;
   modifiedBy: string;
   embedLink?: string;
   type?: string;
   content?: string;
-  notes?: Note[];
   organizationId: string;
+  notes?: Note[];
 }
 
-export interface ChatMessage {
-  sender: 'user' | 'ai';
-  text: string;
-}
-
-export interface InspectionResult {
-    questionId: string;
-    question: string;
-    status: 'pass' | 'fail' | 'pending';
-    photos?: string[]; // Array of base64 strings
-    notes?: string;
-}
-
-export interface InspectionRecord {
-    id: string;
-    templateId: string;
-    templateName: string;
-    date: string; // ISO date string
-    auditor: string;
-    hotelName: string;
-    department: string;
-    status: 'In Progress' | 'Completed' | 'Overdue';
-    results: InspectionResult[];
-    complianceScore: number;
-    areaId?: string;
-    areaName?: string;
-}
-
-export interface InspectionQuestion {
-    id: string;
-    text: string;
-    guidance: string;
-}
-
-export interface InspectionTemplate {
-    id: string;
-    name: string;
-    department: string;
-    questions: InspectionQuestion[];
-}
-
-
+// SOPs
 export type SopTemplateCategory = 'Food Safety' | 'Health & Safety' | 'Operations' | 'HR';
-
+export interface SopStep {
+  title: string;
+  description: string;
+}
+export interface Sop {
+  title: string;
+  purpose: string;
+  scope: string;
+  steps: SopStep[];
+}
 export interface SopTemplate {
   id: string;
   title: string;
@@ -139,53 +76,116 @@ export interface SopTemplate {
   category: SopTemplateCategory;
 }
 
-export interface Task {
-  id: string;
-  name: string;
-  start: string; // ISO date string 'YYYY-MM-DD'
-  end: string;   // ISO date string 'YYYY-MM-DD'
-  dependencies: string[]; // Array of task IDs it depends on
-  assigneeId: string;
-  status: 'pending' | 'in-progress' | 'completed';
-  recurringInstanceId?: string; // To group recurring tasks
-  parentId?: string; // ID of the parent task
-  description?: string;
-  priority?: 'Low' | 'Medium' | 'High';
+// Hotels
+export interface Area {
+    id: string;
+    name: string;
+    type: string;
+}
+export interface Hotel {
+    id: string;
+    name: string;
+    areas?: Area[];
 }
 
-export interface PlannedInspection {
-  areaName: string;
-  templateName: string;
-  assignedManager: string;
+// Inspections
+export interface InspectionQuestion {
+    id: string;
+    text: string;
+    guidance?: string;
 }
-
+export interface InspectionTemplate {
+    id: string;
+    name: string;
+    department: string;
+    questions: InspectionQuestion[];
+}
+export interface InspectionResult {
+    questionId: string;
+    question: string;
+    status: 'pass' | 'fail' | 'pending';
+    notes?: string;
+    photos?: string[];
+}
+export interface InspectionRecord {
+    id: string;
+    templateId: string;
+    templateName: string;
+    date: string;
+    auditor: string;
+    hotelName: string;
+    areaId?: string;
+    areaName?: string;
+    department: string;
+    status: 'In Progress' | 'Completed' | 'Overdue';
+    results: InspectionResult[];
+    complianceScore: number;
+}
+export interface WeeklyPlanItem {
+    areaName: string;
+    templateName: string;
+    assignedManager: string;
+}
 export interface WeeklyPlan {
-    monday: PlannedInspection[];
-    tuesday: PlannedInspection[];
-    wednesday: PlannedInspection[];
-    thursday: PlannedInspection[];
-    friday: PlannedInspection[];
-    saturday: PlannedInspection[];
-    sunday: PlannedInspection[];
+    monday: WeeklyPlanItem[];
+    tuesday: WeeklyPlanItem[];
+    wednesday: WeeklyPlanItem[];
+    thursday: WeeklyPlanItem[];
+    friday: WeeklyPlanItem[];
+    saturday: WeeklyPlanItem[];
+    sunday: WeeklyPlanItem[];
 }
 
-export type IncidentStatus = 'Open' | 'In Progress' | 'Resolved' | 'Verified';
+// Incidents
 export type IncidentSeverity = 'Low' | 'Medium' | 'Critical';
+export type IncidentStatus = 'Open' | 'In Progress' | 'Resolved' | 'Verified';
 export type IncidentCategory = 'Maintenance' | 'Safety' | 'Hygiene' | 'Guest' | 'Security';
-
+export interface IncidentLog {
+    date: string;
+    action: string;
+    user: string;
+}
 export interface Incident {
     id: string;
     title: string;
     description: string;
     hotelId: string;
     areaId?: string;
-    status: IncidentStatus;
     severity: IncidentSeverity;
     category: IncidentCategory;
-    reportedBy: string; // User Name
-    assignedTo?: string; // User ID
-    createdAt: string; // ISO Date
-    updatedAt: string; // ISO Date
-    photos?: string[]; // Array of base64
-    logs: { date: string; action: string; user: string }[];
+    status: IncidentStatus;
+    reportedBy: string;
+    assignedTo?: string;
+    photos?: string[];
+    createdAt: string;
+    updatedAt: string;
+    logs: IncidentLog[];
+}
+
+// Tasks
+export interface Task {
+    id: string;
+    name: string;
+    description?: string;
+    priority?: 'Low' | 'Medium' | 'High';
+    start: string;
+    end: string;
+    assigneeId: string;
+    dependencies: string[];
+    status: 'pending' | 'in-progress' | 'completed';
+    parentId?: string;
+    recurringInstanceId?: string;
+}
+
+// General
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  user: string;
+  details: string;
+  timestamp: Date;
+}
+export interface ChatMessage {
+  sender: 'user' | 'ai';
+  text: string;
 }

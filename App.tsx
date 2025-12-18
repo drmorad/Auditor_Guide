@@ -1,6 +1,4 @@
-
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { DocumentManager } from './components/DocumentManager';
@@ -18,60 +16,30 @@ import { AppCatalog } from './components/AppCatalog';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { ChatAssistant } from './components/ChatAssistant';
 import { Header } from './components/Header';
+import { Login } from './components/Login';
 import { getChatResponse } from './services/geminiService';
 import { View, User, Document, AuditLogEntry, Sop, SopTemplate, Hotel, InspectionRecord, ChatMessage, InspectionTemplate as InspectionTemplateType, Task, Incident } from './types';
 import { MOCK_USERS, MOCK_DOCUMENTS, MOCK_HOTELS, MOCK_INSPECTION_RECORDS, MOCK_INSPECTION_TEMPLATES, MOCK_TASKS, MOCK_INCIDENTS } from './mockData';
 import { InspectionPlanner } from './components/InspectionPlanner';
 import { IncidentManager } from './components/IncidentManager';
 import { SopLibrary } from './components/SopLibrary';
-
-const APP_STORAGE_PREFIX = 'auditorsguide_';
-
-// Helper function to get item from localStorage
-const getStoredItem = <T,>(key: string, defaultValue: T): T => {
-    try {
-        const item = localStorage.getItem(`${APP_STORAGE_PREFIX}${key}`);
-        return item ? JSON.parse(item) : defaultValue;
-    } catch (error) {
-        console.error(`Error reading from localStorage key “${key}”:`, error);
-        return defaultValue;
-    }
-};
-
-// Helper function to set item in localStorage
-const setStoredItem = <T,>(key: string, value: T) => {
-    try {
-        localStorage.setItem(`${APP_STORAGE_PREFIX}${key}`, JSON.stringify(value));
-    } catch (error) {
-        console.error(`Error writing to localStorage key “${key}”:`, error);
-    }
-};
-
+import { initializeGoogleClients, requestAccessToken, revokeToken, ITokenClient } from './services/googleAuthService';
+import { findOrCreateDataFile, uploadData, loadData } from './services/googleDriveService';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View | null>(null);
-  const [users, setUsers] = useState<User[]>(() => getStoredItem('users', MOCK_USERS));
-  
-  // Initialize currentUser with the first user (Admin) to bypass login screen
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-      const storedUsers = getStoredItem('users', MOCK_USERS);
-      return storedUsers.length > 0 ? storedUsers[0] : null;
-  });
+  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  const [documents, setDocuments] = useState<Document[]>(() => getStoredItem('documents', MOCK_DOCUMENTS));
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => {
-    const storedLogs = getStoredItem<AuditLogEntry[]>('auditLogs', []);
-    return storedLogs.map(log => ({
-      ...log,
-      timestamp: new Date(log.timestamp),
-    }));
-  });
-  const [hotels, setHotels] = useState<Hotel[]>(() => getStoredItem('hotels', MOCK_HOTELS));
-  const [inspectionRecords, setInspectionRecords] = useState<InspectionRecord[]>(() => getStoredItem('inspectionRecords', MOCK_INSPECTION_RECORDS));
-  const [inspectionTemplates, setInspectionTemplates] = useState<InspectionTemplateType[]>(() => getStoredItem('inspectionTemplates', MOCK_INSPECTION_TEMPLATES));
-  const [tasks, setTasks] = useState<Task[]>(() => getStoredItem('tasks', MOCK_TASKS));
-  const [incidents, setIncidents] = useState<Incident[]>(() => getStoredItem('incidents', MOCK_INCIDENTS));
-  const [departments, setDepartments] = useState<string[]>(() => getStoredItem('departments', ['Kitchen', 'Housekeeping', 'Maintenance', 'Front Office', 'Security', 'Food & Beverage', 'Human Resources', 'Sales & Marketing', 'Spa & Recreation']));
+  const [documents, setDocuments] = useState<Document[]>(MOCK_DOCUMENTS);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [hotels, setHotels] = useState<Hotel[]>(MOCK_HOTELS);
+  const [inspectionRecords, setInspectionRecords] = useState<InspectionRecord[]>(MOCK_INSPECTION_RECORDS);
+  const [inspectionTemplates, setInspectionTemplates] = useState<InspectionTemplateType[]>(MOCK_INSPECTION_TEMPLATES);
+  const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
+  const [incidents, setIncidents] = useState<Incident[]>(MOCK_INCIDENTS);
+  const [departments, setDepartments] = useState<string[]>(['Kitchen', 'Housekeeping', 'Maintenance', 'Front Office', 'Security', 'Food & Beverage', 'Human Resources', 'Sales & Marketing', 'Spa & Recreation']);
 
   const [sopInitialData, setSopInitialData] = useState<any>(null);
   const [profileUser, setProfileUser] = useState<User | null>(null);
@@ -79,24 +47,33 @@ const App: React.FC = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => getStoredItem('theme', 'light'));
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // Google Drive & Data Persistence State
   const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isDriveConfigured, setIsDriveConfigured] = useState(true);
+  const [googleClientsInitialized, setGoogleClientsInitialized] = useState(false);
+  const [driveError, setDriveError] = useState<string | null>(null);
+  const tokenClient = useRef<ITokenClient | null>(null);
+  
+  const [driveDataFileId, setDriveDataFileId] = useState<string | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'unsaved' | 'saving' | 'error'>('saved');
+  const isInitialLoad = useRef(true);
+  
+  const appState = { users, documents, auditLogs, hotels, inspectionRecords, inspectionTemplates, tasks, incidents, departments, theme };
 
-  // --- Data Persistence Effects ---
-  useEffect(() => { setStoredItem('users', users); }, [users]);
-  useEffect(() => { setStoredItem('documents', documents); }, [documents]);
-  useEffect(() => { setStoredItem('auditLogs', auditLogs); }, [auditLogs]);
-  useEffect(() => { setStoredItem('hotels', hotels); }, [hotels]);
-  useEffect(() => { setStoredItem('inspectionRecords', inspectionRecords); }, [inspectionRecords]);
-  useEffect(() => { setStoredItem('inspectionTemplates', inspectionTemplates); }, [inspectionTemplates]);
-  useEffect(() => { setStoredItem('tasks', tasks); }, [tasks]);
-  useEffect(() => { setStoredItem('incidents', incidents); }, [incidents]);
-  useEffect(() => { setStoredItem('departments', departments); }, [departments]);
-  useEffect(() => { setStoredItem('theme', theme); }, [theme]);
-
+  // This effect tracks changes to any part of the app's data state.
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    setHasUnsavedChanges(true);
+    setSaveStatus('unsaved');
+  }, [users, documents, auditLogs, hotels, inspectionRecords, inspectionTemplates, tasks, incidents, departments, theme]);
+  
   const addAuditLog = useCallback((action: string, details: string) => {
     if (!currentUser) return;
     const newLog: AuditLogEntry = {
@@ -111,15 +88,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (currentUser) {
-      // Only set to Dashboard if we are currently viewing nothing (initial load)
-      // or if we were logged out.
-      if (view === null) {
-          setView(View.Dashboard);
-      }
+      setView(View.Dashboard);
     } else {
-      setView(null); // Show AppCatalog if logged out
+      setView(null);
     }
-  }, [currentUser]); // Removed addAuditLog and view from dependency to prevent loops
+  }, [currentUser]);
   
   useEffect(() => {
     if (theme === 'dark') {
@@ -134,21 +107,139 @@ const App: React.FC = () => {
     addAuditLog('Theme Changed', `Switched to ${theme === 'light' ? 'dark' : 'light'} mode.`);
   };
 
+  const handleSaveData = useCallback(async () => {
+      if (!isDriveConnected || !driveDataFileId) return;
+
+      setSaveStatus('saving');
+      try {
+          await uploadData(driveDataFileId, appState);
+          setHasUnsavedChanges(false);
+          setSaveStatus('saved');
+          addAuditLog('Data Synced', 'Saved application data to Google Drive.');
+      } catch (error) {
+          console.error("Failed to save data:", error);
+          setSaveStatus('error');
+          setDriveError('Failed to save data. Please try again.');
+      }
+  }, [isDriveConnected, driveDataFileId, appState, addAuditLog]);
+
+
   const handleLogout = () => {
+    if (hasUnsavedChanges) {
+        handleSaveData();
+    }
     addAuditLog('User Logged Out', `User ${currentUser?.name} logged out.`);
     setCurrentUser(null);
   };
 
-  const handleConnectDrive = () => {
+  const loadDataFromDrive = async (fileId: string) => {
+    setIsLoadingData(true);
+    try {
+        const data = await loadData(fileId);
+        isInitialLoad.current = true; // Prevent change detection during load
+
+        setUsers(data.users || MOCK_USERS);
+        setDocuments(data.documents || MOCK_DOCUMENTS);
+        setAuditLogs(data.auditLogs ? data.auditLogs.map((log:any) => ({...log, timestamp: new Date(log.timestamp)})) : []);
+        setHotels(data.hotels || MOCK_HOTELS);
+        setInspectionRecords(data.inspectionRecords || MOCK_INSPECTION_RECORDS);
+        setInspectionTemplates(data.inspectionTemplates || MOCK_INSPECTION_TEMPLATES);
+        setTasks(data.tasks || MOCK_TASKS);
+        setIncidents(data.incidents || MOCK_INCIDENTS);
+        setDepartments(data.departments || []);
+        setTheme(data.theme || 'light');
+        addAuditLog('Data Synced', 'Loaded application data from Google Drive.');
+    } catch (error) {
+        console.error("Failed to load data from drive", error);
+        setDriveError("Could not load data from Google Drive. Using local defaults.");
+    } finally {
+        setIsLoadingData(false);
+        setTimeout(() => { isInitialLoad.current = false; }, 500);
+    }
+  };
+
+  const handleConnectDrive = async () => {
+    if (isConnecting) return;
     setIsConnecting(true);
-    addAuditLog('Action Initiated', `Connecting to Google Drive.`);
-    setTimeout(() => {
-        setIsDriveConnected(true);
+    setDriveError(null);
+
+    let client = tokenClient.current;
+
+    if (!googleClientsInitialized) {
+        try {
+            client = await initializeGoogleClients();
+            if (client) {
+                tokenClient.current = client;
+                setGoogleClientsInitialized(true);
+                setIsDriveConfigured(true);
+            } else {
+                const configError = "Google Drive credentials are not configured. Data persistence is disabled.";
+                setIsDriveConfigured(false);
+                setDriveError(configError);
+                setIsConnecting(false);
+                setIsLoadingData(false); // Stop loading if drive is not configured
+                isInitialLoad.current = false;
+                return;
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Google client init error.";
+            console.error("Failed to initialize Google clients:", errorMessage);
+            const userFriendlyError = `Failed to connect to Google services. This can happen if the API key is invalid, has not been configured to use the Google Drive API, or if there's a network issue. Please check the browser console for more details. [${errorMessage}]`;
+            setDriveError(userFriendlyError);
+            setIsDriveConfigured(false);
+            setIsConnecting(false);
+            setIsLoadingData(false);
+            isInitialLoad.current = false;
+            return;
+        }
+    }
+
+    if (!client) {
+        setDriveError("Google client could not be initialized.");
         setIsConnecting(false);
-        addAuditLog('Integration Enabled', `Successfully connected to Google Drive.`);
-    }, 1500);
+        setIsLoadingData(false);
+        isInitialLoad.current = false;
+        return;
+    }
+    
+    addAuditLog('Action Initiated', 'Connecting to Google Drive for data sync.');
+    
+    requestAccessToken(client, async (tokenResponse) => {
+      if (tokenResponse.error) {
+        const accessError = `Failed to get access token: ${tokenResponse.error_description || tokenResponse.error}`;
+        setDriveError(accessError);
+        addAuditLog('Integration Failed', 'Failed to connect to Google Drive.');
+        setIsDriveConnected(false);
+        setIsLoadingData(false);
+        isInitialLoad.current = false;
+      } else {
+        setIsDriveConnected(true);
+        addAuditLog('Integration Enabled', 'Successfully connected to Google Drive.');
+
+        // Find or create the data file and load data
+        const initialContent = JSON.stringify({ users: MOCK_USERS, documents: MOCK_DOCUMENTS, hotels: MOCK_HOTELS, inspectionRecords: MOCK_INSPECTION_RECORDS, inspectionTemplates: MOCK_INSPECTION_TEMPLATES, tasks: MOCK_TASKS, incidents: MOCK_INCIDENTS, departments: [], auditLogs: [], theme: 'light' }, null, 2);
+        const fileId = await findOrCreateDataFile(initialContent);
+        setDriveDataFileId(fileId);
+        await loadDataFromDrive(fileId);
+      }
+      setIsConnecting(false);
+    });
   };
   
+  useEffect(() => {
+    // Automatically try to connect to drive on app load.
+    handleConnectDrive();
+  }, []);
+
+
+  const handleDisconnectDrive = () => {
+    if(isDriveConnected) {
+      revokeToken();
+      setIsDriveConnected(false);
+      addAuditLog('Integration Disabled', 'Disconnected from Google Drive.');
+    }
+  };
+
   const handleSopCreated = (sop: Sop) => {
     setSopInitialData(sop);
     setView(View.SopGenerator);
@@ -207,7 +298,6 @@ const App: React.FC = () => {
     const hotelToDelete = hotels.find(h => h.id === hotelId);
     if (hotelToDelete) {
       setHotels(prev => prev.filter(h => h.id !== hotelId));
-      // Also remove this hotelId from any users assigned to it
       setUsers(prevUsers => prevUsers.map(user => ({
           ...user,
           hotelIds: user.hotelIds?.filter(id => id !== hotelId) || []
@@ -238,26 +328,19 @@ const App: React.FC = () => {
     recurring?: { frequency: 'daily' | 'weekly' | 'monthly'; endDate: string; }
   ) => {
     if (!recurring) {
-      const newTask: Task = {
-        id: `task-${Date.now()}`,
-        ...taskData
-      };
+      const newTask: Task = { id: `task-${Date.now()}`, ...taskData };
       setTasks(prev => [...prev, newTask]);
       addAuditLog('Task Created', `Created new task: "${newTask.name}"`);
     } else {
       const newTasks: Task[] = [];
       const recurringInstanceId = `recur-${Date.now()}`;
-      // Calculate duration in days. getTime() is in UTC.
       const taskDurationDays = Math.max(0, (new Date(taskData.end).getTime() - new Date(taskData.start).getTime()) / (1000 * 3600 * 24));
-
-      // Use 'T12:00:00Z' to avoid timezone issues where new Date('YYYY-MM-DD') might become the previous day.
       let currentDate = new Date(taskData.start + 'T12:00:00Z');
       const finalEndDate = new Date(recurring.endDate + 'T12:00:00Z');
 
       while (currentDate <= finalEndDate) {
         const taskEndDate = new Date(currentDate);
         taskEndDate.setDate(currentDate.getDate() + taskDurationDays);
-
         const newTask: Task = {
           ...taskData,
           id: `task-${Date.now()}-${newTasks.length}`,
@@ -265,21 +348,13 @@ const App: React.FC = () => {
           name: `${taskData.name} (${currentDate.toISOString().split('T')[0]})`,
           start: currentDate.toISOString().split('T')[0],
           end: taskEndDate.toISOString().split('T')[0],
-          dependencies: [], // Recurring tasks shouldn't have dependencies for simplicity
+          dependencies: [],
         };
         newTasks.push(newTask);
-
         switch (recurring.frequency) {
-          case 'daily':
-            currentDate.setDate(currentDate.getDate() + 1);
-            break;
-          case 'weekly':
-            currentDate.setDate(currentDate.getDate() + 7);
-            break;
-          case 'monthly':
-            // This is a simplification; for full accuracy, libraries like date-fns are better.
-            currentDate.setMonth(currentDate.getMonth() + 1);
-            break;
+          case 'daily': currentDate.setDate(currentDate.getDate() + 1); break;
+          case 'weekly': currentDate.setDate(currentDate.getDate() + 7); break;
+          case 'monthly': currentDate.setMonth(currentDate.getMonth() + 1); break;
         }
       }
       setTasks(prev => [...prev, ...newTasks]);
@@ -299,31 +374,14 @@ const App: React.FC = () => {
       setChatHistory(prev => [...prev, { sender: 'user', text: message }]);
       setIsChatLoading(true);
       try {
-          // 1. Find relevant documents based on keywords
           const stopWords = ['a', 'an', 'the', 'is', 'are', 'was', 'were', 'what', 'where', 'how', 'who', 'why', 'tell', 'me', 'about', 'of', 'in', 'on', 'for', 'with', 'it', 'you', 'i', 'can', 'show', 'give'];
-          const keywords = message
-              .toLowerCase()
-              .replace(/[^\w\s]/g, '') // remove punctuation
-              .split(/\s+/) // split by whitespace
-              .filter(word => word && !stopWords.includes(word));
-
-          const relevantDocuments = documents
-              .map(doc => {
+          const keywords = message.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(word => word && !stopWords.includes(word));
+          const relevantDocuments = documents.map(doc => {
                   const docText = `${doc.name} ${doc.tags.join(' ')} ${doc.content || ''}`.toLowerCase();
                   let score = 0;
-                  keywords.forEach(keyword => {
-                      if (docText.includes(keyword)) {
-                          score++;
-                      }
-                  });
+                  keywords.forEach(keyword => { if (docText.includes(keyword)) score++; });
                   return { doc, score };
-              })
-              .filter(item => item.score > 0)
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 3) // Limit to top 3 relevant documents
-              .map(item => item.doc);
-
-          // 2. Construct context and log referenced documents
+              }).filter(item => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(item => item.doc);
           let context: string;
           if (relevantDocuments.length > 0) {
               const referencedDocNames = relevantDocuments.map(d => d.name);
@@ -333,7 +391,6 @@ const App: React.FC = () => {
           } else {
               context = "No relevant documents were found in the system regarding the user's query.";
           }
-
           const response = await getChatResponse(message, context);
           setChatHistory(prev => [...prev, { sender: 'ai', text: response }]);
       } catch (error) {
@@ -343,182 +400,103 @@ const App: React.FC = () => {
       }
   };
 
-  const handleGetStarted = () => {
-      // Auto-login as default admin if "Get Started" is clicked and no user is active
-      if (!currentUser) {
-          const defaultAdmin = users.find(u => u.role === 'Admin') || users[0];
-          setCurrentUser(defaultAdmin);
-          addAuditLog('User Logged In', `User ${defaultAdmin.name} logged in via Quick Start.`);
-      }
-      setView(View.Dashboard);
+  const handleGetStarted = () => { setLoginError(null); setView(View.Login); };
+
+  const handleLogin = (email: string, password: string): boolean => {
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.status === 'Active');
+    if (user && user.password === password) {
+      setCurrentUser(user);
+      setLoginError(null);
+      return true;
+    }
+    setLoginError("Invalid email or password.");
+    return false;
   };
 
-
-  const renderView = () => {
-    // If not logged in and not in Catalog view (null), show Catalog
-    if (!currentUser) {
-        return <AppCatalog onGetStarted={handleGetStarted} />;
+  const handleRegister = (name: string, email: string, password: string): boolean => {
+    if (users.length > 0) {
+      setLoginError("Registration is disabled. Please contact an administrator for an invite.");
+      return false;
     }
+    if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+        setLoginError("A user with this email already exists.");
+        return false;
+    }
+    const newUser: User = {
+      id: `user-${Date.now()}`, name, email, password, role: 'Admin', status: 'Active',
+      avatar: `https://i.pravatar.cc/150?u=${email}`, organizationId: 'org-1', jobTitle: 'Administrator'
+    };
+    setUsers([newUser]);
+    setCurrentUser(newUser);
+    addAuditLog('User Registered', `First admin ${name} registered.`);
+    setLoginError(null);
+    return true;
+  };
 
+    if (isLoadingData) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-900">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500 mx-auto"></div>
+                    <p className="mt-4 text-lg font-semibold text-slate-700 dark:text-slate-300">Loading your data...</p>
+                </div>
+            </div>
+        );
+    }
+    
+  const renderLoggedInView = () => {
     const selectedHotel = selectedHotelId ? hotels.find(h => h.id === selectedHotelId) : null;
-
     switch (view) {
-      case View.Dashboard:
-        return <Dashboard 
-                  hotel={selectedHotel} 
-                  auditLogs={auditLogs} 
-                  users={users} 
-                  inspectionRecords={inspectionRecords}
-                  incidents={incidents}
-                  tasks={tasks}
-                />;
-      case View.Documents:
-        return <DocumentManager 
-                  setView={setView} 
-                  addAuditLog={addAuditLog} 
-                  documents={documents} 
-                  setDocuments={setDocuments} 
-                  onSopCreated={handleSopCreated}
-                  isDriveConnected={isDriveConnected}
-                  isConnecting={isConnecting}
-                  onConnectDrive={handleConnectDrive}
-                />;
-      case View.SopLibrary:
-        return <SopLibrary 
-            documents={documents} 
-            setDocuments={setDocuments} 
-            setView={setView} 
-            addAuditLog={addAuditLog} 
-        />;
-      case View.Inspections:
-        return <InspectionManager records={inspectionRecords} setRecords={setInspectionRecords} hotels={hotels} templates={inspectionTemplates} currentUser={currentUser} addAuditLog={addAuditLog} />;
-      case View.Incidents:
-        return <IncidentManager incidents={incidents} setIncidents={setIncidents} currentUser={currentUser} users={users} hotels={hotels} addAuditLog={addAuditLog} />;
-      case View.Team:
-        return <TeamManager currentUser={currentUser} users={users} setView={setView} onViewProfile={(user) => { setProfileUser(user); setView(View.UserProfile); }} />;
-      case View.AuditLog:
-        return <AuditLogView auditLogs={auditLogs} />;
-      case View.Settings:
-        return <Settings onOpenChangePassword={() => setIsChangePasswordOpen(true)} />;
-      case View.SopGenerator:
-        return <SopGenerator setView={setView} addAuditLog={addAuditLog} onSaveSop={handleSaveSop} initialData={sopInitialData} onClearInitialData={() => setSopInitialData(null)} />;
-      case View.SopTemplates:
-        return <SopTemplates setView={setView} onSelectTemplate={handleSelectSopTemplate} onStartFromScratch={() => { setSopInitialData(null); setView(View.SopGenerator); }} />;
-      case View.AdminPanel:
-        return <AdminPanel 
-            users={users} 
-            setUsers={setUsers} 
-            onSendInvite={handleInviteUser} 
-            addAuditLog={addAuditLog} 
-            currentUser={currentUser} 
-            hotels={hotels} 
-            onAddHotel={handleAddHotel} 
-            onDeleteHotel={handleDeleteHotel} 
-            onUpdateHotel={handleUpdateHotel} 
-            inspectionTemplates={inspectionTemplates} 
-            onCreateTemplate={handleCreateInspectionTemplate}
-            departments={departments}
-            onAddDepartment={handleAddDepartment}
-            onDeleteDepartment={handleDeleteDepartment}
-            isDriveConnected={isDriveConnected}
-            isConnecting={isConnecting}
-            onConnectDrive={handleConnectDrive}
-        />;
-      case View.UserProfile:
-        return profileUser ? <UserProfile user={profileUser} allHotels={hotels} auditLogs={auditLogs} onBack={() => setView(View.Team)} /> : null;
-      case View.Reporting:
-        return <Reporting records={inspectionRecords} hotels={hotels} />;
-       case View.Scheduler:
-        return <Scheduler tasks={tasks} users={users} onAddTask={handleAddTask} onUpdateTasks={handleUpdateTasks} />;
-       case View.Planner:
-        return <InspectionPlanner hotels={hotels} templates={inspectionTemplates} users={users} />;
-      default:
-        return <Dashboard 
-                  hotel={selectedHotel} 
-                  auditLogs={auditLogs} 
-                  users={users} 
-                  inspectionRecords={inspectionRecords}
-                  incidents={incidents}
-                  tasks={tasks}
-                />;
+      case View.Dashboard: return <Dashboard hotel={selectedHotel} auditLogs={auditLogs} users={users} inspectionRecords={inspectionRecords} incidents={incidents} tasks={tasks} />;
+      case View.Documents: return <DocumentManager setView={setView} addAuditLog={addAuditLog} documents={documents} setDocuments={setDocuments} onSopCreated={handleSopCreated} isDriveConnected={isDriveConnected} isConnecting={isConnecting} onConnectDrive={handleConnectDrive} currentUser={currentUser!} isDriveConfigured={isDriveConfigured} driveError={driveError} />;
+      case View.SopLibrary: return <SopLibrary documents={documents} setDocuments={setDocuments} setView={setView} addAuditLog={addAuditLog} />;
+      case View.Inspections: return <InspectionManager records={inspectionRecords} setRecords={setInspectionRecords} hotels={hotels} templates={inspectionTemplates} currentUser={currentUser!} addAuditLog={addAuditLog} />;
+      case View.Incidents: return <IncidentManager incidents={incidents} setIncidents={setIncidents} currentUser={currentUser!} users={users} hotels={hotels} addAuditLog={addAuditLog} />;
+      case View.Team: return <TeamManager currentUser={currentUser!} users={users} setView={setView} onViewProfile={(user) => { setProfileUser(user); setView(View.UserProfile); }} />;
+      case View.AuditLog: return <AuditLogView auditLogs={auditLogs} />;
+      case View.Settings: return <Settings onOpenChangePassword={() => setIsChangePasswordOpen(true)} />;
+      case View.SopGenerator: return <SopGenerator setView={setView} addAuditLog={addAuditLog} onSaveSop={handleSaveSop} initialData={sopInitialData} onClearInitialData={() => setSopInitialData(null)} />;
+      case View.SopTemplates: return <SopTemplates setView={setView} onSelectTemplate={handleSelectSopTemplate} onStartFromScratch={() => { setSopInitialData(null); setView(View.SopGenerator); }} />;
+      case View.AdminPanel: return <AdminPanel users={users} setUsers={setUsers} onSendInvite={handleInviteUser} addAuditLog={addAuditLog} currentUser={currentUser!} hotels={hotels} onAddHotel={handleAddHotel} onDeleteHotel={handleDeleteHotel} onUpdateHotel={handleUpdateHotel} inspectionTemplates={inspectionTemplates} onCreateTemplate={handleCreateInspectionTemplate} departments={departments} onAddDepartment={handleAddDepartment} onDeleteDepartment={handleDeleteDepartment} isDriveConnected={isDriveConnected} isConnecting={isConnecting} onConnectDrive={handleConnectDrive} onDisconnectDrive={handleDisconnectDrive} isDriveConfigured={isDriveConfigured} driveError={driveError} driveDataFileId={driveDataFileId} />;
+      case View.UserProfile: return profileUser ? <UserProfile user={profileUser} allHotels={hotels} auditLogs={auditLogs} onBack={() => setView(View.Team)} /> : null;
+      case View.Reporting: return <Reporting records={inspectionRecords} hotels={hotels} />;
+      case View.Scheduler: return <Scheduler tasks={tasks} users={users} onAddTask={handleAddTask} onUpdateTasks={handleUpdateTasks} />;
+      case View.Planner: return <InspectionPlanner hotels={hotels} templates={inspectionTemplates} users={users} />;
+      default: return <Dashboard hotel={selectedHotel} auditLogs={auditLogs} users={users} inspectionRecords={inspectionRecords} incidents={incidents} tasks={tasks} />;
     }
   };
-
-  if (view === null) {
+  
+  if (!currentUser) {
+      if (view === View.Login) { return <Login onLogin={handleLogin} onRegister={handleRegister} error={loginError} onBack={() => { setLoginError(null); setView(null); }} isInitialSetup={users.length === 0} /> }
       return <AppCatalog onGetStarted={handleGetStarted} />;
   }
 
   return (
     <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-      {currentUser && (
-        <Sidebar
-          view={view}
-          setView={setView}
-          onLogout={handleLogout}
-          user={currentUser}
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-        />
-      )}
-      
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-          aria-hidden="true"
-        />
-      )}
-
-      {currentUser ? (
-        <div className="flex-1 flex flex-col overflow-hidden">
-           <Header
-            view={view}
-            user={currentUser}
-            hotels={hotels}
-            selectedHotelId={selectedHotelId}
-            onSelectHotel={setSelectedHotelId}
-            theme={theme}
-            onToggleTheme={handleToggleTheme}
-            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          />
-          <main className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900">
-            {renderView()}
-          </main>
-        </div>
-      ) : (
-         <main className="flex-1 overflow-y-auto">
-            {renderView()}
-         </main>
-      )}
+      <Sidebar view={view} setView={setView} onLogout={handleLogout} user={currentUser} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      {isSidebarOpen && (<div className="fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden" onClick={() => setIsSidebarOpen(false)} aria-hidden="true" />)}
+      <div className="flex-1 flex flex-col overflow-hidden">
+         <Header view={view} user={currentUser} hotels={hotels} selectedHotelId={selectedHotelId} onSelectHotel={setSelectedHotelId} theme={theme} onToggleTheme={handleToggleTheme} onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} onSaveData={handleSaveData} saveStatus={saveStatus} />
+        <main className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900">
+          {renderLoggedInView()}
+        </main>
+      </div>
 
       {isChangePasswordOpen && currentUser && (
-        <ChangePasswordModal
-          user={currentUser}
-          onClose={() => setIsChangePasswordOpen(false)}
-          onSave={(newPassword) => {
-            setCurrentUser(u => u ? {...u, password: newPassword} : null);
-            setUsers(us => us.map(u => u.id === currentUser.id ? {...u, password: newPassword} : u));
+        <ChangePasswordModal user={currentUser} onClose={() => setIsChangePasswordOpen(false)} onSave={(newPassword) => {
+            const updatedUser = { ...currentUser, password: newPassword };
+            setCurrentUser(updatedUser);
+            setUsers(us => us.map(u => u.id === currentUser.id ? updatedUser : u));
             addAuditLog('Password Changed', 'User changed their password.');
             setIsChangePasswordOpen(false);
-          }}
-        />
+          }} />
       )}
       {currentUser && (
         <>
-            <button
-                onClick={() => setIsChatOpen(true)}
-                className="fixed bottom-6 right-6 w-16 h-16 bg-primary-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-700 transition-transform transform hover:scale-110 z-40"
-                aria-label="Open AI Assistant"
-            >
+            <button onClick={() => setIsChatOpen(true)} className="fixed bottom-6 right-6 w-16 h-16 bg-primary-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-primary-700 transition-transform transform hover:scale-110 z-40" aria-label="Open AI Assistant">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.08-3.239A8.93 8.93 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.72 14.28A7 7 0 0010 16a7 7 0 007-7c0-2.846-2.6-5-6-5S4 7.154 4 10c0 .724.182 1.418.504 2.053l-.336.999.952-.372z" clipRule="evenodd" /></svg>
             </button>
-            <ChatAssistant
-                isOpen={isChatOpen}
-                onClose={() => setIsChatOpen(false)}
-                history={chatHistory}
-                onSendMessage={handleSendMessage}
-                isLoading={isChatLoading}
-            />
+            <ChatAssistant isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} history={chatHistory} onSendMessage={handleSendMessage} isLoading={isChatLoading} />
         </>
       )}
     </div>

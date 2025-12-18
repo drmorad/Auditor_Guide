@@ -1,14 +1,14 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Sop, UserRole, WeeklyPlan, Hotel, InspectionTemplate, User, InspectionQuestion } from '../types';
 
-const API_KEY = process.env.API_KEY;
+let aiInstance: GoogleGenAI;
 
-if (!API_KEY) {
-  throw new Error("API_KEY environment variable is not set.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const getAi = () => {
+  if (!aiInstance) {
+    aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return aiInstance;
+};
 
 const sopSchema = {
   type: Type.OBJECT,
@@ -63,8 +63,8 @@ export const generateSop = async (topic: string, keywords: string, details: stri
       The SOP should be structured with a clear title, purpose, scope, and a series of actionable steps. Each step must have its own title and a detailed description. The language should be professional and unambiguous. The output must strictly conform to the provided JSON schema.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await getAi().models.generateContent({
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction: "You are an expert in creating clear, professional, and compliant Standard Operating Procedures (SOPs) for various business environments. Your goal is to produce documents that are easy for employees to understand and follow.",
@@ -98,8 +98,8 @@ export const generateSopFromDocument = async (fileContent: string, mimeType: str
             ? { inlineData: { data: fileContent.split(',')[1], mimeType } }
             : { text: fileContent };
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+        const response = await getAi().models.generateContent({
+            model: "gemini-3-pro-preview",
             contents: { parts: [contentPart, { text: prompt }] },
             config: {
                 systemInstruction: "You are an expert in analyzing documents and creating clear, professional Standard Operating Procedures (SOPs). Your goal is to accurately interpret the provided content and structure it into a usable SOP format.",
@@ -143,8 +143,8 @@ export const reviewSop = async (sopContent: string): Promise<string> => {
       --- END SOP ---
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await getAi().models.generateContent({
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         temperature: 0.3, // Lower temp for more deterministic, analytical feedback
@@ -174,8 +174,8 @@ export const getChatResponse = async (question: string, context: string): Promis
             User's Question: "${question}"
         `;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+        const response = await getAi().models.generateContent({
+            model: "gemini-3-pro-preview",
             contents: prompt,
             config: {
                 temperature: 0.2,
@@ -202,8 +202,8 @@ export const suggestTaskDetails = async (taskName: string): Promise<string> => {
             Generate a description with a few checklist items. Be concise.
         `;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+        const response = await getAi().models.generateContent({
+            model: "gemini-3-pro-preview",
             contents: prompt,
             config: {
                 temperature: 0.8, // Higher temperature for more creative/varied suggestions
@@ -250,8 +250,8 @@ export const suggestUserRole = async (jobTitle: string): Promise<{ role: UserRol
       The output must strictly conform to the provided JSON schema.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const response = await getAi().models.generateContent({
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -323,8 +323,8 @@ export const generateWeeklyInspectionPlan = async (hotel: Hotel, templates: Insp
             6.  The final output must be a JSON object that strictly conforms to the provided schema. Each day of the week must be a key. If a day has no inspections, provide an empty array.
         `;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+        const response = await getAi().models.generateContent({
+            model: "gemini-3-pro-preview",
             contents: prompt,
             config: {
                 systemInstruction: "You are an AI assistant that creates structured JSON operational plans for the hospitality industry.",
@@ -385,8 +385,8 @@ export const generateChecklistFromSop = async (sourceText: string): Promise<Insp
             Include brief guidance for each question where helpful.
         `;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+        const response = await getAi().models.generateContent({
+            model: "gemini-3-pro-preview",
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -407,4 +407,66 @@ export const generateChecklistFromSop = async (sourceText: string): Promise<Insp
         console.error("Error generating checklist:", error);
         throw new Error("Failed to generate checklist from SOP.");
     }
+};
+
+const suggestionSchema = {
+  type: Type.ARRAY,
+  items: {
+    type: Type.STRING,
+    description: "An actionable suggestion for operational improvement."
+  }
+};
+
+export const generateImprovementSuggestions = async (
+  failedItems: { question: string; failCount: number }[]
+): Promise<string[]> => {
+  if (failedItems.length === 0) {
+    return [];
+  }
+
+  try {
+    const context = failedItems
+      .map(item => `- The inspection question "${item.question}" failed ${item.failCount} times.`)
+      .join('\n');
+
+    const prompt = `
+      You are an expert operations improvement consultant for the hospitality industry, specializing in compliance management.
+      Based on the following data about frequently failed inspection items, provide 2-3 concise, actionable suggestions to help a manager improve their team's performance.
+
+      Your suggestions should be practical and specific. For example:
+      - If an item about cleaning is failing, suggest creating a detailed "Deep Cleaning SOP" for that area.
+      - If an item about safety equipment is failing, suggest scheduling a "Quarterly Safety Equipment Training Session".
+      - If an item about food temperature is failing, suggest "Implementing a mandatory temperature log check-in twice per shift".
+
+      Focus on creating SOPs, scheduling training, or implementing new checks. Phrase each suggestion as a clear action item.
+
+      Failed Item Data:
+      ${context}
+
+      Return your suggestions as a JSON array of strings, conforming to the provided schema.
+    `;
+
+    const response = await getAi().models.generateContent({
+      model: "gemini-3-pro-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: suggestionSchema,
+        temperature: 0.7,
+      },
+    });
+
+    const jsonText = response.text;
+    const suggestions = JSON.parse(jsonText);
+
+    if (!Array.isArray(suggestions) || !suggestions.every(s => typeof s === 'string')) {
+      throw new Error("Invalid suggestion structure received from API.");
+    }
+
+    return suggestions;
+  } catch (error) {
+    console.error("Error generating improvement suggestions:", error);
+    // Return a generic suggestion on error to avoid a blank space
+    return ["Review frequently failed items with your team to identify root causes."];
+  }
 };

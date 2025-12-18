@@ -3,13 +3,14 @@ import { Task, User } from '../types';
 import { XIcon, PlusCircleIcon, MagicIcon } from './icons';
 import { suggestTaskDetails } from '../services/geminiService';
 
-const CreateTaskModal: React.FC<{
+const TaskModal: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    onSave: (task: Omit<Task, 'id' | 'recurringInstanceId'>, recurring?: { frequency: 'daily' | 'weekly' | 'monthly', endDate: string }) => void;
+    onSave: (taskData: Omit<Task, 'id' | 'recurringInstanceId'> | Task, isNew: boolean, recurring?: { frequency: 'daily' | 'weekly' | 'monthly', endDate: string }) => void;
     users: User[];
     tasks: Task[];
-}> = ({ isOpen, onClose, onSave, users, tasks }) => {
+    taskToEdit?: Task | null;
+}> = ({ isOpen, onClose, onSave, users, tasks, taskToEdit }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState<Task['priority']>('Medium');
@@ -27,25 +28,42 @@ const CreateTaskModal: React.FC<{
     
     const [isSuggesting, setIsSuggesting] = useState(false);
 
+    const resetForm = useCallback(() => {
+        setName('');
+        setDescription('');
+        setPriority('Medium');
+        setStart('');
+        setEnd('');
+        setAssigneeId('');
+        setDependencies([]);
+        setStatus('pending');
+        setParentId('');
+        setError('');
+        setIsRecurring(false);
+        setFrequency('daily');
+        setRecurringEndDate('');
+        setIsSuggesting(false);
+    }, []);
+
     useEffect(() => {
-        if (!isOpen) {
-            // Reset form when modal closes
-            setName('');
-            setDescription('');
-            setPriority('Medium');
-            setStart('');
-            setEnd('');
-            setAssigneeId('');
-            setDependencies([]);
-            setStatus('pending');
-            setParentId('');
-            setError('');
-            setIsRecurring(false);
-            setFrequency('daily');
-            setRecurringEndDate('');
-            setIsSuggesting(false);
+        if (isOpen) {
+            if (taskToEdit) {
+                setName(taskToEdit.name);
+                setDescription(taskToEdit.description || '');
+                setPriority(taskToEdit.priority || 'Medium');
+                setStart(taskToEdit.start);
+                setEnd(taskToEdit.end);
+                setAssigneeId(taskToEdit.assigneeId);
+                setDependencies(taskToEdit.dependencies || []);
+                setStatus(taskToEdit.status);
+                setParentId(taskToEdit.parentId || '');
+                setIsRecurring(!!taskToEdit.recurringInstanceId);
+                setError('');
+            } else {
+                resetForm();
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, taskToEdit, resetForm]);
 
     if (!isOpen) return null;
 
@@ -59,7 +77,7 @@ const CreateTaskModal: React.FC<{
             setError('End date cannot be before the start date.');
             return;
         }
-        if (isRecurring) {
+        if (isRecurring && !taskToEdit) {
             if (!recurringEndDate) {
                 setError('Please set an end date for the recurrence.');
                 return;
@@ -70,12 +88,20 @@ const CreateTaskModal: React.FC<{
             }
         }
 
-        const taskData: Omit<Task, 'id' | 'recurringInstanceId'> = { name, start, end, assigneeId, dependencies, status, parentId: parentId || undefined, description, priority };
-        
-        if (isRecurring) {
-            onSave(taskData, { frequency, endDate: recurringEndDate });
+        if (taskToEdit) {
+            const updatedTask: Task = {
+                ...taskToEdit,
+                name, description, priority, start, end, assigneeId, dependencies, status,
+                parentId: parentId || undefined
+            };
+            onSave(updatedTask, false);
         } else {
-            onSave(taskData);
+            const taskData: Omit<Task, 'id' | 'recurringInstanceId'> = { name, start, end, assigneeId, dependencies, status, parentId: parentId || undefined, description, priority };
+            if (isRecurring) {
+                onSave(taskData, true, { frequency, endDate: recurringEndDate });
+            } else {
+                onSave(taskData, true);
+            }
         }
         onClose();
     };
@@ -115,7 +141,7 @@ const CreateTaskModal: React.FC<{
                     <button onClick={onClose} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full">
                         <XIcon className="w-6 h-6" />
                     </button>
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Create New Task</h2>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{taskToEdit ? 'Edit Task' : 'Create New Task'}</h2>
                 </div>
                 <div className="p-6 space-y-4 flex-grow overflow-y-auto">
                     {error && <p className="text-sm text-red-500 bg-red-100 dark:bg-red-900/50 p-3 rounded-md">{error}</p>}
@@ -180,11 +206,13 @@ const CreateTaskModal: React.FC<{
                             </div>
                         </div>
                         <div className="pt-2 space-y-3">
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                                <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"/>
-                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Make this a recurring task</span>
+                            <label className={`flex items-center space-x-2 ${!!taskToEdit ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" disabled={!!taskToEdit}/>
+                                <span className={`text-sm font-medium ${!!taskToEdit ? 'text-slate-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                    Make this a recurring task {!!taskToEdit && '(disabled for edits)'}
+                                </span>
                             </label>
-                            {isRecurring && (
+                            {isRecurring && !taskToEdit && (
                                 <div className="grid grid-cols-2 gap-4 animate-fade-in bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
                                     <div>
                                         <label htmlFor="task-frequency" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Frequency</label>
@@ -209,13 +237,13 @@ const CreateTaskModal: React.FC<{
                             <label htmlFor="task-parent" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Parent Task (Optional)</label>
                             <select id="task-parent" value={parentId} onChange={e => setParentId(e.target.value)} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700">
                                 <option value="">None</option>
-                                {tasks.map(task => <option key={task.id} value={task.id}>{task.name}</option>)}
+                                {tasks.filter(t => t.id !== taskToEdit?.id).map(task => <option key={task.id} value={task.id}>{task.name}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dependencies (Optional)</label>
                             <div className="max-h-32 overflow-y-auto p-2 border border-slate-300 dark:border-slate-600 rounded-md space-y-2">
-                                {tasks.length > 0 ? tasks.map(task => (
+                                {tasks.length > 0 ? tasks.filter(t => t.id !== taskToEdit?.id).map(task => (
                                     <label key={task.id} className="flex items-center space-x-2 cursor-pointer">
                                         <input type="checkbox" checked={dependencies.includes(task.id)} onChange={() => handleDependencyToggle(task.id)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"/>
                                         <span className="text-sm text-slate-800 dark:text-slate-200">{task.name}</span>
@@ -226,8 +254,8 @@ const CreateTaskModal: React.FC<{
                     </fieldset>
                 </div>
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 flex-shrink-0">
-                    <button onClick={onClose} className="bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg">Cancel</button>
-                    <button onClick={handleSave} className="bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 shadow-md">Save Task</button>
+                    <button type="button" onClick={onClose} className="bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg">Cancel</button>
+                    <button type="button" onClick={handleSave} className="bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 shadow-md">{taskToEdit ? 'Save Changes' : 'Save Task'}</button>
                 </div>
             </div>
         </div>
@@ -349,7 +377,8 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
     
     const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
     const [todayMarkerLeft, setTodayMarkerLeft] = useState<number | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [viewMode, setViewMode] = useState<'gantt' | 'list'>('gantt');
     const [zoomLevel, setZoomLevel] = useState<'day' | 'week' | 'month'>('day');
     const [statusFilter, setStatusFilter] = useState<'all' | Task['status']>('all');
@@ -430,8 +459,19 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
         const minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
         const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
 
-        minDate.setDate(minDate.getDate() - 7);
-        maxDate.setDate(maxDate.getDate() + 14);
+        if (zoomLevel === 'month') {
+            minDate.setMonth(minDate.getMonth() - 1);
+            minDate.setDate(1); // Start from beginning of month
+            maxDate.setMonth(maxDate.getMonth() + 1);
+            // Set to last day of that month
+            maxDate.setDate(new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0).getDate());
+        } else if (zoomLevel === 'week') {
+            minDate.setDate(minDate.getDate() - 14);
+            maxDate.setDate(maxDate.getDate() + 21);
+        } else { // day
+            minDate.setDate(minDate.getDate() - 7);
+            maxDate.setDate(maxDate.getDate() + 14);
+        }
         
         const today = new Date();
         today.setHours(0,0,0,0);
@@ -651,6 +691,14 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
         }
     };
 
+    const handleSaveTask = (taskData: Omit<Task, 'id' | 'recurringInstanceId'> | Task, isNew: boolean, recurring?: { frequency: 'daily' | 'weekly' | 'monthly'; endDate: string; }) => {
+        if (isNew) {
+            onAddTask(taskData as Omit<Task, 'id' | 'recurringInstanceId'>, recurring);
+        } else {
+            onUpdateTasks([taskData as Task]);
+        }
+    };
+
     const GanttHeader = () => {
         const isZoomed = zoomLevel !== 'day';
         const gridRows = isZoomed ? 'grid-rows-2' : 'grid-rows-1';
@@ -664,8 +712,8 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                     </div>
                 ))}
                 {dateRange.map((date, index) => (
-                    <div key={index} className="text-center border-b border-l border-slate-200 dark:border-slate-700 pt-1 text-xs text-slate-500 dark:text-slate-400" style={{ gridRow: isZoomed ? 2 : 1 }}>
-                        <div className="font-semibold">{date.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}</div>
+                    <div key={index} className="text-center border-b border-l border-slate-200 dark:border-slate-700 pt-1 text-xs text-slate-500 dark:text-slate-400 flex flex-col justify-center" style={{ gridRow: isZoomed ? 2 : 1 }}>
+                        {zoomLevel === 'day' && <div className="font-semibold">{date.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}</div>}
                         <div>{date.getDate()}</div>
                     </div>
                 ))}
@@ -714,6 +762,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                                         className={`group relative w-full h-10 rounded-lg flex items-center px-3 text-white text-sm font-bold border-b-2 shadow-sm truncate transition-transform duration-200 hover:shadow-lg ${getTaskBarStyles(task)}`}
                                         data-task-id={task.id}
                                         onMouseDown={(e) => handleInteractionStart(e, task, 'move')}
+                                        onDoubleClick={() => { setEditingTask(task); setIsTaskModalOpen(true); }}
                                     >
                                         <div className="absolute left-0 top-0 h-full w-2 cursor-ew-resize" onMouseDown={(e) => handleInteractionStart(e, task, 'resize-start')}></div>
                                         <span className="truncate pointer-events-none">{task.name}</span>
@@ -888,7 +937,7 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
                         </div>
                     )}
                     <button 
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => { setEditingTask(null); setIsTaskModalOpen(true); }}
                         className="flex items-center gap-2 bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md"
                     >
                         <PlusCircleIcon className="w-5 h-5"/>
@@ -899,12 +948,13 @@ export const Scheduler: React.FC<SchedulerProps> = ({ tasks, users, onAddTask, o
             
             {viewMode === 'gantt' ? renderGanttView() : renderListView()}
 
-            <CreateTaskModal 
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSave={onAddTask}
+            <TaskModal 
+                isOpen={isTaskModalOpen}
+                onClose={() => setIsTaskModalOpen(false)}
+                onSave={handleSaveTask}
                 users={users}
                 tasks={tasks}
+                taskToEdit={editingTask}
             />
         </div>
     );

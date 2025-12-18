@@ -26,7 +26,7 @@ export const AppCatalog: React.FC<AppCatalogProps> = ({ onGetStarted }) => (
             <svg className="w-12 h-12 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-2h2v2h-2zm0-4v-6h2v6h-2z"></path>
             </svg>
-            <h1 className="text-5xl font-bold ml-4 text-slate-800 dark:text-white">Auditors Guide</h1>
+            <h1 className="text-5xl font-bold ml-4 text-slate-800 dark:text-white">Auditor's Guide</h1>
         </div>
         <p className="text-xl text-slate-600 dark:text-slate-400 mt-2">The Smart Compliance Hub for Modern Operations</p>
       </header>
@@ -40,37 +40,24 @@ export const AppCatalog: React.FC<AppCatalogProps> = ({ onGetStarted }) => (
         </button>
       </div>
 
-
       {/* Introduction */}
-      <section className="mb-12">
-        <h2 className="text-3xl font-bold text-center mb-4 text-slate-800 dark:text-white">Streamline Your Compliance, Elevate Your Standards</h2>
+      <section className="mb-12 bg-white dark:bg-slate-800 p-8 rounded-xl shadow-md">
+        <h2 className="text-3xl font-bold text-center mb-4 text-slate-800 dark:text-white">Auditor's Guide Manual</h2>
         <p className="text-lg text-slate-700 dark:text-slate-300 text-center max-w-3xl mx-auto">
-          Auditors Guide is a comprehensive, AI-powered platform designed for the hospitality and service industries to centralize compliance documentation, streamline daily inspections, and manage team access effortlessly. Move from scattered paperwork to a smart, integrated, and data-driven operational workflow.
+          Welcome to Auditor's Guide, your all-in-one platform for operational excellence. This manual provides a complete overview of the app's functionality, designed to help you streamline compliance, manage operations, and empower your team.
         </p>
-      </section>
-
-      {/* Key Benefits */}
-      <section className="mb-12">
-          <h2 className="text-3xl font-bold text-center mb-6 text-slate-800 dark:text-white">Key Benefits</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-4">
-                  <h3 className="font-semibold text-primary-600 dark:text-primary-400 text-lg">Centralized Control</h3>
-                  <p className="text-sm mt-1 text-slate-600 dark:text-slate-400">Access all SOPs, HACCP plans, audit records, and team files from one secure hub.</p>
-              </div>
-              <div className="text-center p-4">
-                  <h3 className="font-semibold text-primary-600 dark:text-primary-400 text-lg">Enhanced Efficiency</h3>
-                  <p className="text-sm mt-1 text-slate-600 dark:text-slate-400">Automate SOP creation and digitize daily inspections to save time and reduce manual effort.</p>
-              </div>
-              <div className="text-center p-4">
-                  <h3 className="font-semibold text-primary-600 dark:text-primary-400 text-lg">Data-Driven Insights</h3>
-                  <p className="text-sm mt-1 text-slate-600 dark:text-slate-400">Utilize the powerful dashboard to track compliance scores, monitor performance, and identify areas for improvement.</p>
-              </div>
-          </div>
+        
+        <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-6">
+            <h3 className="font-semibold text-primary-600 dark:text-primary-400 text-lg text-center">Core Purpose</h3>
+            <p className="text-sm mt-1 text-slate-600 dark:text-slate-400 text-center max-w-2xl mx-auto">
+                Auditor's Guide serves as a central hub for managing Standard Operating Procedures (SOPs), conducting digital inspections, tracking incidents, and scheduling tasks. It replaces scattered paperwork with a smart, integrated, and data-driven workflow, providing real-time insights to elevate your service standards.
+            </p>
+        </div>
       </section>
 
       {/* Features */}
       <section className="mb-12">
-        <h2 className="text-3xl font-bold text-center mb-8 text-slate-800 dark:text-white">Core Features</h2>
+        <h2 className="text-3xl font-bold text-center mb-8 text-slate-800 dark:text-white">Key Functionalities</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <FeatureCard 
             icon={<DashboardIcon className="w-7 h-7 text-primary-600 dark:text-primary-400" />}
@@ -160,7 +147,7 @@ export const AppCatalog: React.FC<AppCatalogProps> = ({ onGetStarted }) => (
         </div>
       </section>
       <footer className="text-center py-6 mt-8 border-t border-slate-200 dark:border-slate-700">
-        <p className="text-slate-500 dark:text-slate-400 text-sm">© 2024 Auditors Guide. All rights reserved.</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">© 2024 Auditor's Guide. All rights reserved.</p>
       </footer>
     </div>
   </div>

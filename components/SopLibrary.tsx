@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Document, View } from '../types';
 import { MagicIcon, SearchIcon } from './icons';
@@ -10,6 +11,16 @@ interface SopLibraryProps {
   setView: (view: View) => void;
   addAuditLog: (action: string, details: string) => void;
 }
+
+const CategoryBadge: React.FC<{ category: Document['category'] }> = ({ category }) => {
+  const colors = {
+    SOP: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+    HACCP: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+    Audit: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+    'Team File': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
+  };
+  return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[category]}`}>{category}</span>;
+};
 
 export const SopLibrary: React.FC<SopLibraryProps> = ({ documents, setDocuments, setView, addAuditLog }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,6 +110,7 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({ documents, setDocuments,
             <thead className="border-b border-slate-200 dark:border-slate-700">
               <tr>
                 <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Name</th>
+                <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Category</th>
                 <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 hidden md:table-cell">Tags</th>
                 <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 hidden sm:table-cell">Last Modified</th>
                 <th className="p-4"></th>
@@ -113,6 +125,7 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({ documents, setDocuments,
                         {doc.name}
                       </button>
                     </td>
+                    <td className="p-4"><CategoryBadge category={doc.category} /></td>
                     <td className="p-4 hidden md:table-cell">
                       <div className="flex flex-wrap gap-1">
                         {doc.tags.slice(0, 3).map(tag => <span key={tag} className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 text-xs rounded">{tag}</span>)}
@@ -132,7 +145,7 @@ export const SopLibrary: React.FC<SopLibraryProps> = ({ documents, setDocuments,
                 ))
               ) : (
                 <tr>
-                    <td colSpan={4} className="text-center p-8 text-slate-500 dark:text-slate-400">
+                    <td colSpan={5} className="text-center p-8 text-slate-500 dark:text-slate-400">
                         No SOPs found matching your search.
                     </td>
                 </tr>

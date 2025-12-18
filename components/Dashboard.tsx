@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Hotel, AuditLogEntry, User, InspectionRecord, Incident, Task } from '../types';
-import { TrendingUpIcon, DocumentIcon, ClipboardCheckIcon, AuditLogIcon, ExclamationTriangleIcon, TicketIcon, CalendarCheckIcon } from './icons';
+import { TrendingUpIcon, DocumentIcon, ClipboardCheckIcon, AuditLogIcon, ExclamationTriangleIcon, TicketIcon, CalendarCheckIcon, MagicIcon } from './icons';
+import { generateImprovementSuggestions } from '../services/geminiService';
 
 interface DashboardProps {
   hotel: Hotel | null;
@@ -201,12 +202,44 @@ const TeamPerformanceSnapshot: React.FC<{ topPerformers: AuditorStat[], mostActi
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
+const AISuggestionCard: React.FC<{ suggestions: string[], isLoading: boolean }> = ({ suggestions, isLoading }) => (
+    <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="ai-suggestions-heading">
+        <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center flex-shrink-0">
+                <MagicIcon className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+            </div>
+            <h3 id="ai-suggestions-heading" className="font-semibold text-slate-800 dark:text-white">AI-Powered Suggestions</h3>
+        </div>
+        {isLoading ? (
+            <div className="flex justify-center items-center h-24">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+            </div>
+        ) : suggestions.length > 0 ? (
+            <ul className="space-y-3">
+                {suggestions.map((suggestion, index) => (
+                    <li key={index} className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary-500 mt-1.5 flex-shrink-0"></div>
+                        <span>{suggestion}</span>
+                    </li>
+                ))}
+            </ul>
+        ) : (
+            <div className="text-center py-4">
+                <p className="text-sm text-slate-500 dark:text-slate-400">No recurring issues found.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Keep up the great work!</p>
+            </div>
+        )}
+    </section>
+);
+
 export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users, inspectionRecords, incidents, tasks }) => {
   const today = new Date();
   const thirtyDaysAgo = new Date(new Date().setDate(today.getDate() - 30));
 
   const [startDate, setStartDate] = useState(thirtyDaysAgo.toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
   
   const dashboardData = useMemo(() => {
     const start = new Date(startDate);
@@ -274,22 +307,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users, i
     const taskCompletionRate = filteredTasks.length > 0 ? Math.round((completedTasksInRange / filteredTasks.length) * 100) : 0;
 
     // 5. Auditor Performance
-    // FIX: This block was updated to correctly type the accumulator in the reduce function.
-    const auditorPerformance = completedInspections.reduce((acc: Record<string, { scores: number[]; count: number }>, inspection) => {
-        const auditorName = inspection.auditor;
-        let performanceData = acc[auditorName];
-        if (!performanceData) {
-            performanceData = { scores: [], count: 0 };
-            acc[auditorName] = performanceData;
-        }
-        performanceData.scores.push(inspection.complianceScore);
-        performanceData.count++;
-        return acc;
-    }, {});
+    const auditorPerformance = completedInspections.reduce((acc, inspection) => {
+      const auditorName = inspection.auditor;
+      if (!acc[auditorName]) {
+        acc[auditorName] = { scores: [], count: 0 };
+      }
+      acc[auditorName].scores.push(inspection.complianceScore);
+      acc[auditorName].count++;
+      return acc;
+    }, {} as Record<string, { scores: number[]; count: number }>);
     
-    const auditorChartData = Object.entries(auditorPerformance).map(([auditor, data]) => ({
+    // FIX: Explicitly type the `data` parameter to resolve the 'unknown' type error from `Object.entries`.
+    const auditorChartData = Object.entries(auditorPerformance).map(([auditor, data]: [string, { scores: number[]; count: number }]) => ({
         name: auditor,
-        'Average Score': Math.round(data.scores.reduce((a, b) => a + b, 0) / data.count),
+        'Average Score': data.scores.length > 0 ? Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length) : 0,
         count: data.count
     }));
 
@@ -379,6 +410,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users, i
         .map(([name, { sum, count }]) => ({ name, score: Math.round(sum / count) }))
         .sort((a, b) => b.score - a.score);
 
+    // 10. Top Failed Items for AI Suggestions
+    const failedItemsByQuestion: Record<string, number> = {};
+    completedInspections.forEach(rec => {
+        rec.results.forEach(res => {
+            if (res.status === 'fail') {
+                failedItemsByQuestion[res.question] = (failedItemsByQuestion[res.question] || 0) + 1;
+            }
+        });
+    });
+
+    const topFailedItems = Object.entries(failedItemsByQuestion)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 3)
+        .map(([question, count]) => ({ question, failCount: count }));
+
     return {
         avgCompliance,
         inspectionCount,
@@ -393,10 +439,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users, i
         followUps,
         heatmapData: { rows, cols, grid },
         complianceTrend,
-        departmentPerformance
+        departmentPerformance,
+        topFailedItems,
     };
   }, [hotel, auditLogs, users, inspectionRecords, incidents, tasks, startDate, endDate]);
   
+    useEffect(() => {
+        // Only run if there are items to analyze
+        if (dashboardData.topFailedItems && dashboardData.topFailedItems.length > 0) {
+            setIsLoadingSuggestions(true);
+            generateImprovementSuggestions(dashboardData.topFailedItems)
+                .then(setAiSuggestions)
+                .catch(error => {
+                    console.error("Failed to get AI suggestions:", error);
+                    setAiSuggestions(["Could not load AI suggestions. Please check connection."]);
+                })
+                .finally(() => setIsLoadingSuggestions(false));
+        } else {
+            // If there are no failed items, don't show loading and have a positive message
+            setIsLoadingSuggestions(false);
+            setAiSuggestions([]);
+        }
+    }, [dashboardData.topFailedItems]);
+
   const iconProps = { className: "w-8 h-8 text-primary-500" };
 
   return (
@@ -524,6 +589,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ hotel, auditLogs, users, i
 
         {/* Sidebar Column */}
         <div className="lg:col-span-1 space-y-6">
+            <AISuggestionCard suggestions={aiSuggestions} isLoading={isLoadingSuggestions} />
             <TeamPerformanceSnapshot topPerformers={dashboardData.topPerformers} mostActive={dashboardData.mostActiveAuditors} />
             <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md" aria-labelledby="activity-heading">
                 <h3 id="activity-heading" className="font-semibold text-slate-800 dark:text-white mb-4">Recent Activity Log</h3>

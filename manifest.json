@@ -1,7 +1,7 @@
 {
-  "name": "Auditors Guide - Smart Compliance Hub",
-  "short_name": "Auditors Guide",
-  "description": "A centralized hub for compliance documentation, HACCP plans, monitoring logs, and team access. Features an AI-powered assistant to generate Standard Operating Procedures (SOPs).",
+  "name": "Auditor's Guide",
+  "short_name": "Auditor's Guide",
+  "description": "An AI-powered compliance and operations platform to help streamline inspections, manage SOPs, track incidents, and gain data-driven insights.",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",

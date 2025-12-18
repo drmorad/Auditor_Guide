@@ -5,16 +5,17 @@ interface LoginProps {
     onRegister: (name: string, email: string, password: string) => boolean;
     error: string | null;
     onBack: () => void;
+    isInitialSetup: boolean;
 }
 
 type ViewMode = 'login' | 'register';
 
-export const Login: React.FC<LoginProps> = ({ onLogin, onRegister, error, onBack }) => {
+export const Login: React.FC<LoginProps> = ({ onLogin, onRegister, error, onBack, isInitialSetup }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [viewMode, setViewMode] = useState<ViewMode>('login');
+    const [viewMode, setViewMode] = useState<ViewMode>(isInitialSetup ? 'register' : 'login');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,12 +28,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onRegister, error, onBack
         }
     };
 
-    const passwordsMatch = password && password === confirmPassword;
+    const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
     const renderHeader = () => {
         const titles = {
             login: 'Welcome Back',
-            register: 'Register Your Organization'
+            register: isInitialSetup ? 'Setup Your Organization' : 'Register'
         };
         const subtitles = {
             login: 'Log in to access your dashboard.',
@@ -41,7 +42,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onRegister, error, onBack
         return (
              <div className="text-center">
                  <button onClick={onBack} className="absolute top-3 left-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 rounded-full" aria-label="Back to home">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
                 </button>
@@ -60,7 +61,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onRegister, error, onBack
 
     const renderFormFields = () => {
         const isRegister = viewMode === 'register';
-        const showConfirmPassword = isRegister;
         
         return (
             <>
@@ -89,7 +89,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onRegister, error, onBack
                     </div>
                 </div>
                 
-                {showConfirmPassword && (
+                {isRegister && (
                      <div>
                         <label htmlFor="confirm-password"className="block text-sm font-medium text-slate-700 dark:text-slate-300">Confirm New Password</label>
                         <div className="mt-1">
@@ -120,20 +120,21 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onRegister, error, onBack
                         {buttonText[viewMode]}
                     </button>
                 </div>
-                <div className="text-center text-sm">
-                    {viewMode === 'login' && (
-                        <p className="text-slate-500">
-                            No account? <button type="button" onClick={() => setViewMode('register')} className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
-                                Register your organization
+                {!isInitialSetup && (
+                    <div className="text-center text-sm">
+                        {viewMode === 'login' ? (
+                            <p className="text-slate-500">
+                                No account? <button type="button" onClick={() => setViewMode('register')} className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+                                    Register
+                                </button>
+                            </p>
+                        ) : (
+                            <button type="button" onClick={() => setViewMode('login')} className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+                            Already have an account? Log in
                             </button>
-                        </p>
-                    )}
-                    {viewMode === 'register' && (
-                         <button type="button" onClick={() => setViewMode('login')} className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
-                           Already have an account? Log in
-                        </button>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
             </>
         )
     };

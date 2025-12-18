@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Hotel, View } from '../types';
-import { SunIcon, MoonIcon, ChevronDownIcon, CheckIcon, BuildingOfficeIcon } from './icons';
+import { SunIcon, MoonIcon, ChevronDownIcon, CheckIcon, BuildingOfficeIcon, XIcon } from './icons';
 
 interface HeaderProps {
   view: View | null;
@@ -12,6 +11,8 @@ interface HeaderProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onToggleSidebar: () => void;
+  onSaveData: () => void;
+  saveStatus: 'saved' | 'unsaved' | 'saving' | 'error';
 }
 
 const VIEW_TITLES: Record<View, string> = {
@@ -30,9 +31,38 @@ const VIEW_TITLES: Record<View, string> = {
   [View.Scheduler]: 'Scheduler',
   [View.Planner]: 'Inspection Planner',
   [View.Incidents]: 'Incident Tickets',
+  [View.Login]: 'Login',
 };
 
-export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHotelId, onSelectHotel, theme, onToggleTheme, onToggleSidebar }) => {
+const SaveStatusIndicator: React.FC<{ status: HeaderProps['saveStatus'], onSave: () => void }> = ({ status, onSave }) => {
+    const statusConfig = {
+        saved: { text: 'Saved', color: 'text-green-600 dark:text-green-400', icon: <CheckIcon className="w-4 h-4" /> },
+        unsaved: { text: 'Unsaved Changes', color: 'text-yellow-600 dark:text-yellow-400', icon: <div className="w-2 h-2 rounded-full bg-yellow-500"></div> },
+        saving: { text: 'Saving...', color: 'text-blue-600 dark:text-blue-400', icon: <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div> },
+        error: { text: 'Save Failed', color: 'text-red-600 dark:text-red-400', icon: <XIcon className="w-4 h-4" /> },
+    };
+
+    const current = statusConfig[status];
+
+    return (
+        <div className="flex items-center gap-2">
+            <span className={`flex items-center gap-1.5 text-xs font-semibold ${current.color}`}>
+                {current.icon}
+                {current.text}
+            </span>
+            {status === 'unsaved' || status === 'error' ? (
+                <button
+                    onClick={onSave}
+                    className="bg-primary-600 text-white font-semibold text-xs py-1 px-3 rounded-md hover:bg-primary-700 transition-colors"
+                >
+                    Save to Drive
+                </button>
+            ) : null}
+        </div>
+    );
+};
+
+export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHotelId, onSelectHotel, theme, onToggleTheme, onToggleSidebar, onSaveData, saveStatus }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +95,8 @@ export const Header: React.FC<HeaderProps> = ({ view, user, hotels, selectedHote
       </div>
 
       <div className="flex items-center gap-4">
+        <SaveStatusIndicator status={saveStatus} onSave={onSaveData} />
+        
         {view === View.Dashboard && (
           <div className="relative" ref={dropdownRef}>
             <button

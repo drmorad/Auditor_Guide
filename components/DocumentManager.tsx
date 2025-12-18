@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useMemo } from 'react';
-import { Document, View, Sop } from '../types';
-import { MagicIcon, SearchIcon, EditIcon, UploadIcon } from './icons';
+import { Document, View, Sop, User } from '../types';
+import { MagicIcon, SearchIcon, EditIcon, UploadIcon, DriveIcon, ExclamationTriangleIcon } from './icons';
 import { EditDocumentModal } from './EditDocumentModal';
 import { UploadPreviewModal } from './UploadPreviewModal';
 import { DocumentPreview } from './DocumentPreview';
@@ -28,9 +27,12 @@ interface DocumentManagerProps {
   isDriveConnected: boolean;
   isConnecting: boolean;
   onConnectDrive: () => void;
+  currentUser: User;
+  isDriveConfigured: boolean;
+  driveError: string | null;
 }
 
-export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments, onSopCreated, isDriveConnected, isConnecting, onConnectDrive }) => {
+export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAuditLog, documents, setDocuments, onSopCreated, isDriveConnected, isConnecting, onConnectDrive, currentUser, isDriveConfigured, driveError }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'All' | Document['category']>('All');
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
@@ -38,6 +40,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
   const [previewingDocument, setPreviewingDocument] = useState<Document | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState<{ file: File | null; name: string; content: string; type: string; } | null>(null);
   const [isSavingUpload, setIsSavingUpload] = useState(false);
+  const [isPickingFile, setIsPickingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const allTags = useMemo(() => {
@@ -111,7 +114,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
     }
     
     const newDocuments = documents.map(doc =>
-      doc.id === updatedDocument.id ? { ...updatedDocument, lastModified: new Date().toISOString().split('T')[0], modifiedBy: 'Current User' } : doc
+      doc.id === updatedDocument.id ? { ...updatedDocument, lastModified: new Date().toISOString().split('T')[0], modifiedBy: currentUser.name } : doc
     );
     setDocuments(newDocuments);
     addAuditLog('Document Edited', logDetails);
@@ -123,6 +126,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
   };
   
   const handleImportFromDrive = async () => {
+    setIsPickingFile(true);
     try {
       addAuditLog('Action Initiated', 'Importing file from Google Drive.');
       const fileData = await pickFile();
@@ -135,6 +139,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
     } catch (error) {
       console.error("Drive import failed", error);
       // In a real app, show an error toast to the user
+    } finally {
+        setIsPickingFile(false);
     }
   };
 
@@ -147,8 +153,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
         setUploadingDocument({ file, name: file.name, content, type: file.type });
       };
 
-      if (file.type.startsWith('text/') || file.type === '') {
-        reader.readAsText(file);
+      if (file.type.startsWith('text/') || file.type === '' || file.type === 'application/pdf') {
+         reader.readAsDataURL(file); // Reading as data URL for preview consistency in modal
       } else {
         reader.readAsDataURL(file);
       }
@@ -182,16 +188,17 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
     setIsSavingUpload(true);
     try {
       if (uploadingDocument.file) { // It's a local upload, send to Drive
-          const { embedLink } = await uploadFile(uploadingDocument.file);
+          const { id: driveId, embedLink } = await uploadFile(uploadingDocument.file);
           const newDocument: Document = {
               id: new Date().toISOString(),
+              driveId,
               name: details.name,
               category: details.category,
               tags: details.tags,
               embedLink,
               type: uploadingDocument.type,
               lastModified: new Date().toISOString().split('T')[0],
-              modifiedBy: 'Current User',
+              modifiedBy: currentUser.name,
               notes: [],
               organizationId: documents[0]?.organizationId || '',
           };
@@ -206,7 +213,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
               content: uploadingDocument.content,
               type: uploadingDocument.type,
               lastModified: new Date().toISOString().split('T')[0],
-              modifiedBy: 'Current User',
+              modifiedBy: currentUser.name,
               notes: [],
               organizationId: documents[0]?.organizationId || '',
           };
@@ -219,6 +226,78 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
     } finally {
         setIsSavingUpload(false);
     }
+  };
+  
+  const renderDriveButtons = () => {
+    if (driveError) {
+      return (
+        <div className="relative group">
+          <div className="flex items-center justify-center gap-2 bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 font-semibold py-2 px-4 rounded-lg w-full">
+            <ExclamationTriangleIcon className="w-5 h-5" />
+            <span>Drive Unavailable</span>
+          </div>
+          <div className="absolute bottom-full mb-2 w-72 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            {driveError}
+          </div>
+        </div>
+      );
+    }
+
+    if (!isDriveConfigured) {
+        return (
+            <div className="relative group">
+                <div className="flex items-center justify-center gap-2 bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400 font-semibold py-2 px-4 rounded-lg w-56 cursor-not-allowed">
+                    <DriveIcon className="w-5 h-5" />
+                    <span>Drive Not Configured</span>
+                </div>
+                <div className="absolute bottom-full mb-2 w-72 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    Google Drive integration is not available because API credentials are not set up by the administrator.
+                </div>
+            </div>
+        );
+    }
+
+    if (!isDriveConnected) {
+      return (
+        <button 
+          onClick={onConnectDrive}
+          disabled={isConnecting}
+          className="flex items-center justify-center gap-2 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-400 disabled:cursor-wait w-56"
+        >
+            {isConnecting ? (
+              <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Connecting...</span>
+              </>
+            ) : (
+              <>
+                  <DriveIcon className="w-5 h-5" />
+                  <span>Connect to Google Drive</span>
+              </>
+            )}
+        </button>
+      );
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+         <button 
+          onClick={handleImportFromDrive}
+          disabled={isPickingFile}
+          className="flex items-center gap-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+        >
+          {isPickingFile ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-500"></div> : <DriveIcon className="w-5 h-5"/>}
+          Import from Drive
+        </button>
+         <button 
+          onClick={handleUploadClick}
+          className="flex items-center gap-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+        >
+          <UploadIcon className="w-5 h-5"/>
+          Upload to Drive
+        </button>
+      </div>
+    );
   };
 
   const renderModals = () => (
@@ -266,42 +345,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
                 aria-hidden="true"
                 accept="image/png, image/jpeg, .pdf, .txt, text/plain"
               />
-              {!isDriveConnected ? (
-                <button 
-                  onClick={onConnectDrive}
-                  disabled={isConnecting}
-                  className="flex items-center justify-center gap-2 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-400 disabled:cursor-wait w-56"
-                >
-                    {isConnecting ? (
-                      <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                          <span>Connecting...</span>
-                      </>
-                    ) : (
-                      <>
-                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.925 9.094c-.225-.525-.525-.975-.9-1.35L13.5 2.219l-6 10.35 4.5 7.875 7.05-4.05c.45-.9.825-1.875.875-2.85zm-7.05-4.05l3.45 6-3.45 6-6-3.45-3.45-6 6-3.45z"></path></svg>
-                          <span>Connect to Google Drive</span>
-                      </>
-                    )}
-                </button>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                   <button 
-                    onClick={handleImportFromDrive}
-                    className="flex items-center gap-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
-                  >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"></path></svg>
-                    Import from Drive
-                  </button>
-                   <button 
-                    onClick={handleUploadClick}
-                    className="flex items-center gap-2 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold py-2 px-4 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
-                  >
-                    <UploadIcon className="w-5 h-5"/>
-                    Upload to Drive
-                  </button>
-                </div>
-              )}
+              {renderDriveButtons()}
               <button onClick={() => setView(View.SopTemplates)} className="flex items-center gap-2 bg-primary-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors shadow-md">
                   <MagicIcon className="w-5 h-5"/>
                   Generate SOP with AI
@@ -365,7 +409,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({ setView, addAu
                 <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400">Category</th>
                 <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 hidden md:table-cell">Tags</th>
                 <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400 hidden sm:table-cell">Last Modified</th>
-                <th className="p-4 text-sm font-semibold text-slate-500 dark:text-slate-400"></th>
+                <th className="p-4"></th>
               </tr>
             </thead>
             <tbody>
